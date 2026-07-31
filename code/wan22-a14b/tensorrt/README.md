@@ -1,15 +1,15 @@
-# NVIDIA B300 x8 WAN2.2-A14B  测试执行文档
+# NVIDIA B300 x8 WAN2.2-A14B Test Execution Runbook
 
 
-## 1. 模型下载
+## 1. Model Download
 
-WAN2.2-A14B 使用 Hugging Face 模型：
+WAN2.2-A14B uses the Hugging Face model:
 
 ```text
 Wan-AI/Wan2.2-T2V-A14B-Diffusers
 ```
 
-建议下载到：
+Recommended download path:
 
 ```text
 $MLPERF_SCRATCH_PATH/models/Wan-AI/Wan2.2-T2V-A14B-Diffusers
@@ -22,7 +22,7 @@ export MLPERF_SCRATCH_PATH=/path/to
 
 python3 -m pip install -U "huggingface_hub[cli]"
 
-# 如需认证，先执行：
+# If authentication is required, run:
 # huggingface-cli login
 
 huggingface-cli download Wan-AI/Wan2.2-T2V-A14B-Diffusers \
@@ -32,20 +32,50 @@ huggingface-cli download Wan-AI/Wan2.2-T2V-A14B-Diffusers \
 du -sh "$MLPERF_SCRATCH_PATH/models/Wan-AI/Wan2.2-T2V-A14B-Diffusers"
 ```
 
-## 2. 下载 Docker（使用 NVIDIA Docker）
+## 2. Download Docker (Use NVIDIA Docker)
 
-B300 x86 机器使用 NVIDIA x86 MLPerf TensorRT-LLM 镜像。
+Use the NVIDIA x86 MLPerf TensorRT-LLM image on B300 x86 machines.
 
-拉取 NVIDIA Docker 镜像：
+Pull the NVIDIA Docker image:
 
 ```bash
 docker pull nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-进入容器：
+Clone the VibeHPC project and prepare third-party repositories:
 
 ```bash
-export VibeHPC_PATH=/path/to
+export VibeHPC_REPO=/path/to/VibeHPC/inference_results_v6.0.git
+export VibeHPC_ROOT=/path/to/inference_results_v6.0
+
+git clone --progress "$VibeHPC_REPO" "$VibeHPC_ROOT"
+
+cd "$VibeHPC_ROOT/closed/NVIDIA"
+export VibeHPC_PATH="$(pwd)"
+
+mkdir -p 3rdparty
+
+git clone --depth 1 --progress https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
+git clone --depth 1 --progress https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
+
+cd 3rdparty/mlc-inference
+git submodule update --init --recursive --jobs 8
+
+cd ../trtllm
+
+git config --global --add safe.directory '*'
+git fetch --all --tags
+
+git checkout v1.3.0rc0
+
+git rev-parse HEAD
+git describe --tags --always
+```
+
+Enter the container:
+
+```bash
+export VibeHPC_PATH=/path/to/inference_results_v6.0/closed/NVIDIA
 export MLPERF_SCRATCH_PATH=/path/to
 
 docker run --rm -it \
@@ -62,7 +92,7 @@ docker run --rm -it \
   nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-容器内建议先执行：
+Inside the container, run the following first:
 
 ```bash
 cd /work
@@ -75,42 +105,22 @@ mkdir -p $MLPERF_SCRATCH_PATH/logs
 ln -sfn $MLPERF_SCRATCH_PATH/logs build/logs
 ```
 
-## 3. 下载数据
+## 3. Data Download
 
-WAN2.2-A14B 的 prompt 和 fixed latent 来自 `mlc-inference` 子仓库：
+WAN2.2-A14B prompts and fixed latent come from the `mlc-inference` sub-repository:
 
 ```text
 3rdparty/mlc-inference/text_to_video/wan-2.2-t2v-a14b/data/vbench_prompts.txt
 3rdparty/mlc-inference/text_to_video/wan-2.2-t2v-a14b/data/fixed_latent.pt
 ```
 
-准备第三方库：
+After Section 2 is complete, these two files should already be at the paths above.
 
-```bash
-cd /work
-mkdir -p 3rdparty
+## 4. Data Processing
 
-if [ ! -d 3rdparty/mlc-inference ]; then
-  git clone --recurse-submodules https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
-fi
+Run the commands in this section inside the NVIDIA Docker container. If you have not entered the container yet, complete Section 2 to pull the Docker image and start the container.
 
-if [ ! -d 3rdparty/trtllm ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
-fi
-
-if [ ! -d 3rdparty/mitten ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/mitten.git 3rdparty/mitten
-fi
-
-cd /work/3rdparty/trtllm
-git checkout feat/visual_gen
-```
-
-## 4. 数据处理
-
-本节命令需要在 NVIDIA Docker 容器内执行。若还没有进入容器，先完成第 2 节的 Docker 镜像下载和容器启动。
-
-执行预处理脚本：
+Run the preprocessing script:
 
 ```bash
 cd /work
@@ -125,7 +135,7 @@ ls -lh "$MLPERF_SCRATCH_PATH/preprocessed_data/wan22-a14b/prompts.txt"
 ls -lh "$MLPERF_SCRATCH_PATH/preprocessed_data/wan22-a14b/fixed_latent.pt"
 ```
 
-安装 visual_gen：
+Install `visual_gen`:
 
 ```bash
 cd /work/3rdparty/trtllm/tensorrt_llm/visual_gen
@@ -137,11 +147,11 @@ export PIP_NO_CACHE_DIR=1
 cd /work
 ```
 
-## 5. 跑测试
+## 5. Run Tests
 
-### 1）. 跑 PerformanceOnly
+### 1. Run PerformanceOnly
 
-WAN2.2-A14B B300 x8 使用：
+Use the following for WAN2.2-A14B on B300 x8:
 
 ```text
 SYSTEM_NAME=B300-SXM-270GBx8
@@ -159,7 +169,7 @@ export RUN_ARGS="--benchmarks=wan22-a14b --scenarios=Offline --test_mode=Perform
 make run_harness RUN_ARGS="$RUN_ARGS"
 ```
 
-### 2）. 跑 AccuracyOnly
+### 2. Run AccuracyOnly
 
 ```bash
 cd /work
@@ -173,9 +183,9 @@ export RUN_ARGS="--benchmarks=wan22-a14b --scenarios=Offline --test_mode=Accurac
 make run_harness RUN_ARGS="$RUN_ARGS"
 ```
 
-### 3）. 跑涉及的 Audit
+### 3. Run Required Audit Tests
 
-WAN2.2-A14B 涉及 TEST01，通过 `run_audit_harness` 运行。
+WAN2.2-A14B requires TEST01, run through `run_audit_harness`.
 
 ```bash
 cd /work
@@ -189,7 +199,7 @@ export RUN_ARGS="--benchmarks=wan22-a14b --scenarios=Offline --wan22_model_path=
 make run_audit_harness RUN_ARGS="$RUN_ARGS"
 ```
 
-可选 smoke test：
+Optional smoke test:
 
 ```bash
 make run_harness RUN_ARGS="--benchmarks=wan22-a14b --scenarios=Offline --test_mode=AccuracyOnly --wan22_total_sample_count=20 --accuracy_sample_count_override=20 --wan22_model_path=$MLPERF_SCRATCH_PATH/models/Wan-AI/Wan2.2-T2V-A14B-Diffusers"

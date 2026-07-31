@@ -1,12 +1,12 @@
-# NVIDIA B300 x8 DeepSeek-R1  测试执行文档
+# NVIDIA B300 x8 DeepSeek-R1 Test Execution Runbook
 
 
-## 1. 模型下载
+## 1. Model Download
 
-DeepSeek-R1 B300 x8 使用 NVIDIA 的 FP4/NVFP4 checkpoint。
+DeepSeek-R1 on B300 x8 uses NVIDIA FP4/NVFP4 checkpoints.
 
 
-目标目录：
+Target directory:
 
 ```text
 $MLPERF_SCRATCH_PATH/models/deepseek-r1/fp4-quantized-modelopt/deepseek_r1-torch-fp4
@@ -98,26 +98,56 @@ du -sh "$TARGET_DIR"
 ls -lh "$TARGET_DIR"/config.json "$TARGET_DIR"/tokenizer.json "$TARGET_DIR"/model.safetensors.index.json
 ```
 
-期望结果：
+Expected result:
 
 ```text
 safetensors count: 163
 ```
 
-## 2. 下载 Docker（使用 NVIDIA Docker）
+## 2. Download Docker (Use NVIDIA Docker)
 
-B300 x86 机器使用 NVIDIA x86 MLPerf TensorRT-LLM 镜像。
+Use the NVIDIA x86 MLPerf TensorRT-LLM image on B300 x86 machines.
 
-拉取 NVIDIA Docker 镜像：
+Pull the NVIDIA Docker image:
 
 ```bash
 docker pull nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-进入容器
+Clone the VibeHPC project and prepare third-party repositories:
 
 ```bash
-export VibeHPC_PATH=/path/to
+export VibeHPC_REPO=/path/to/VibeHPC/inference_results_v6.0.git
+export VibeHPC_ROOT=/path/to/inference_results_v6.0
+
+git clone --progress "$VibeHPC_REPO" "$VibeHPC_ROOT"
+
+cd "$VibeHPC_ROOT/closed/NVIDIA"
+export VibeHPC_PATH="$(pwd)"
+
+mkdir -p 3rdparty
+
+git clone --depth 1 --progress https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
+git clone --depth 1 --progress https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
+
+cd 3rdparty/mlc-inference
+git submodule update --init --recursive --jobs 8
+
+cd ../trtllm
+
+git config --global --add safe.directory '*'
+git fetch --all --tags
+
+git checkout v1.3.0rc0
+
+git rev-parse HEAD
+git describe --tags --always
+```
+
+Enter the container:
+
+```bash
+export VibeHPC_PATH=/path/to/inference_results_v6.0/closed/NVIDIA
 export MLPERF_SCRATCH_PATH=/path/to
 
 docker run --rm -it \
@@ -133,7 +163,7 @@ docker run --rm -it \
   nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-容器内建议先执行：
+Inside the container, run the following first:
 
 ```bash
 cd /work
@@ -146,30 +176,9 @@ mkdir -p $MLPERF_SCRATCH_PATH/logs
 ln -sfn $MLPERF_SCRATCH_PATH/logs build/logs
 ```
 
-准备第三方库：
+## 3. Data Download
 
-```bash
-cd /work
-mkdir -p 3rdparty
-
-if [ ! -d 3rdparty/trtllm ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
-fi
-
-if [ ! -d 3rdparty/mlc-inference ]; then
-  git clone --recurse-submodules https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
-fi
-
-if [ ! -d 3rdparty/mitten ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/mitten.git 3rdparty/mitten
-fi
-
-git config --global --add safe.directory /work/3rdparty/trtllm
-```
-
-## 3. 下载数据
-
-创建数据目录，并使用 MLCommons R2 downloader 下载 DeepSeek-R1 评测数据：
+Create the data directory and use the MLCommons R2 downloader to download DeepSeek-R1 evaluation data:
 
 ```bash
 export MLPERF_SCRATCH_PATH=/path/to
@@ -183,18 +192,18 @@ bash <(curl -s https://raw.githubusercontent.com/mlcommons/r2-downloader/refs/he
 ls -lh $MLPERF_SCRATCH_PATH/data/deepseek-r1
 ```
 
-DeepSeek-R1 需要以下两个 pkl 文件：
+DeepSeek-R1 requires the following two pkl files:
 
 ```text
 mlperf_deepseek_r1_dataset_4388_fp8_eval.pkl
 mlperf_deepseek_r1_calibration_dataset_500_fp8_eval.pkl
 ```
 
-## 4. 数据处理
+## 4. Data Processing
 
-本节命令需要在 NVIDIA Docker 容器内执行。若还没有进入容器，先完成第 2 节的 Docker 镜像下载和容器启动，再回到本节运行预处理。
+Run the commands in this section inside the NVIDIA Docker container. If you have not entered the container yet, complete Section 2 to pull the Docker image and start the container, then return here for preprocessing.
 
-进入容器后初始化目录链接：
+After entering the container, initialize directory links:
 
 ```bash
 cd /work
@@ -210,7 +219,7 @@ ln -sfn $MLPERF_SCRATCH_PATH/logs build/logs
 ls -l build
 ```
 
-期望链接：
+Expected links:
 
 ```text
 build/data -> $MLPERF_SCRATCH_PATH/data
@@ -219,7 +228,7 @@ build/preprocessed_data -> $MLPERF_SCRATCH_PATH/preprocessed_data
 build/logs -> $MLPERF_SCRATCH_PATH/logs
 ```
 
-创建预处理虚拟环境并执行 DeepSeek-R1 数据预处理：
+Create a preprocessing virtual environment and run DeepSeek-R1 data preprocessing:
 
 ```bash
 export MLPERF_SCRATCH_PATH=/path/to
@@ -241,7 +250,7 @@ python3 code/deepseek-r1/tensorrt/preprocess_data.py \
   --preprocessed_data_dir $MLPERF_SCRATCH_PATH/preprocessed_data
 ```
 
-检查预处理产物：
+Check preprocessing outputs:
 
 ```bash
 ls -lh build/preprocessed_data/deepseek-r1/input_lens.npy
@@ -253,7 +262,7 @@ find build/models/deepseek-r1/fp4-quantized-modelopt/deepseek_r1-torch-fp4 \
 du -sh build/models/deepseek-r1/fp4-quantized-modelopt/deepseek_r1-torch-fp4
 ```
 
-如果校准数据目录名没有对齐，创建兼容链接：
+If the calibration data directory name does not match, create a compatibility link:
 
 ```bash
 ln -sfn \
@@ -266,7 +275,7 @@ make link_dirs
 deactivate
 ```
 
-为 DeepSeek-R1 建立模型兼容路径：
+Create a model compatibility path for DeepSeek-R1:
 
 ```bash
 cd /work
@@ -280,7 +289,7 @@ ls -l /work/build/models/deepseek-r1/deepseek-r1
 ls -lh /work/build/models/deepseek-r1/deepseek-r1/config.json
 ```
 
-可选预构建：
+Optional prebuild:
 
 ```bash
 cd /work
@@ -289,25 +298,25 @@ export MLPERF_SCRATCH_PATH=/path/to
 make prebuild ENV=release BENCHMARK=deepseek
 ```
 
-如果 `make prebuild` 报缺少原始模型路径：
+If `make prebuild` reports a missing original model path:
 
 ```text
 build/models/deepseek-r1/deepseek-r1
 ```
 
-先确认上面的兼容链接是否已经创建。正常流程优先只使用 NVFP4 checkpoint。
+First confirm that the compatibility link above has been created. The normal flow should use only the NVFP4 checkpoint.
 
-## 5. 跑测试
+## 5. Run Tests
 
-### 1）. 跑 PerformanceOnly
+### 1. Run PerformanceOnly
 
-DeepSeek-R1 B300 x8 使用：
+Use the following for DeepSeek-R1 on B300 x8:
 
 ```text
 SYSTEM_NAME=B300-SXM-270GBx8
 ```
 
-启动服务前建议清理残留进程：
+Before starting the service, clean up any leftover processes:
 
 ```bash
 echo "== before =="
@@ -330,7 +339,7 @@ echo "== after kill =="
 nvidia-smi
 ```
 
-启动 endpoint。此终端保持运行，不要关闭：
+Start the endpoint. Keep this terminal running:
 
 ```bash
 cd /work
@@ -344,7 +353,7 @@ make run_llm_server
 ```
 
 
-服务启动后，在另一个终端进入同一个容器，或重新启动一个挂载相同目录的容器，然后运行 harness：
+After the service starts, enter the same container from another terminal or start another container with the same mounts, then run the harness:
 
 ```bash
 cd /work
@@ -357,9 +366,9 @@ export RUN_ARGS="--benchmarks=deepseek-r1 --scenarios=Offline --core_type=trtllm
 make run_harness
 ```
 
-### 2）. 跑 AccuracyOnly
+### 2. Run AccuracyOnly
 
-AccuracyOnly 建议重新启动 fresh endpoint。先停止 PerformanceOnly 的 server，再在 server 终端执行：
+For AccuracyOnly, start a fresh endpoint. Stop the PerformanceOnly server first, then run the following in the server terminal:
 
 ```bash
 cd /work
@@ -372,7 +381,7 @@ export RUN_ARGS="--benchmarks=deepseek-r1 --scenarios=Offline --core_type=trtllm
 make run_llm_server SYSTEM_NAME=B300-SXM-270GBx8
 ```
 
-等 server ready 后，在另一个终端运行 accuracy harness：
+After the server is ready, run the accuracy harness in another terminal:
 
 ```bash
 cd /work
@@ -385,9 +394,9 @@ export RUN_ARGS="--benchmarks=deepseek-r1 --scenarios=Offline --core_type=trtllm
 make run_harness SYSTEM_NAME=B300-SXM-270GBx8
 ```
 
-### 3）. 跑涉及的 Audit
+### 3. Run Required Audit Tests
 
-DeepSeek-R1 本文保留原始记录中的 TEST06 Audit。建议重新启动 fresh endpoint：
+For DeepSeek-R1, this runbook keeps the TEST06 audit from the source notes. Start a fresh endpoint:
 
 ```bash
 cd /work
@@ -400,7 +409,7 @@ make run_llm_server \
   SYSTEM_NAME=B300-SXM-270GBx8
 ```
 
-等 server ready 后，在另一个终端运行 TEST06：
+After the server is ready, run TEST06 in another terminal:
 
 ```bash
 cd /work

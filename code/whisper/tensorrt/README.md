@@ -1,11 +1,11 @@
-# NVIDIA B300 x1 Whisper  测试执行文档
+# NVIDIA B300 x1 Whisper Test Execution Runbook
 
 
-## 1. 模型下载
+## 1. Model Download
 
-Whisper 使用 `whisper-large-v3` 模型。
+Whisper uses the `whisper-large-v3` model.
 
-目标目录：
+Target directory:
 
 ```text
 $MLPERF_SCRATCH_PATH/models/whisper-large-v3
@@ -38,20 +38,50 @@ md5sum "$TARGET_DIR/large-v3.pt" | grep "017baacdaada84d0d5cb030140875b65"
 ls -lh "$TARGET_DIR"
 ```
 
-## 2. 下载 Docker（使用 NVIDIA Docker）
+## 2. Download Docker (Use NVIDIA Docker)
 
-B300 x86 机器使用 NVIDIA x86 MLPerf TensorRT-LLM 镜像。
+Use the NVIDIA x86 MLPerf TensorRT-LLM image on B300 x86 machines.
 
-拉取 NVIDIA Docker 镜像：
+Pull the NVIDIA Docker image:
 
 ```bash
 docker pull nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-进入容器：
+Clone the VibeHPC project and prepare third-party repositories:
 
 ```bash
-export VibeHPC_PATH=/path/to
+export VibeHPC_REPO=/path/to/VibeHPC/inference_results_v6.0.git
+export VibeHPC_ROOT=/path/to/inference_results_v6.0
+
+git clone --progress "$VibeHPC_REPO" "$VibeHPC_ROOT"
+
+cd "$VibeHPC_ROOT/closed/NVIDIA"
+export VibeHPC_PATH="$(pwd)"
+
+mkdir -p 3rdparty
+
+git clone --depth 1 --progress https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
+git clone --depth 1 --progress https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
+
+cd 3rdparty/mlc-inference
+git submodule update --init --recursive --jobs 8
+
+cd ../trtllm
+
+git config --global --add safe.directory '*'
+git fetch --all --tags
+
+git checkout v1.3.0rc0
+
+git rev-parse HEAD
+git describe --tags --always
+```
+
+Enter the container:
+
+```bash
+export VibeHPC_PATH=/path/to/inference_results_v6.0/closed/NVIDIA
 export MLPERF_SCRATCH_PATH=/path/to
 
 docker run --rm -it \
@@ -67,7 +97,7 @@ docker run --rm -it \
   nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-容器内建议先执行：
+Inside the container, run the following first:
 
 ```bash
 cd /work
@@ -82,32 +112,11 @@ ln -sfn $MLPERF_SCRATCH_PATH/logs build/logs
 ls -l build
 ```
 
-准备第三方库：
+## 3. Data Download
 
-```bash
-cd /work
-mkdir -p 3rdparty
+Whisper uses the LibriSpeech `dev-clean` and `dev-other` datasets.
 
-if [ ! -d 3rdparty/trtllm ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
-fi
-
-if [ ! -d 3rdparty/mlc-inference ]; then
-  git clone --recurse-submodules https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
-fi
-
-if [ ! -d 3rdparty/mitten ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/mitten.git 3rdparty/mitten
-fi
-
-git config --global --add safe.directory /work/3rdparty/trtllm
-```
-
-## 3. 下载数据
-
-Whisper 使用 LibriSpeech `dev-clean` 和 `dev-other` 数据。
-
-在容器内准备下载清单并下载数据：
+Inside the container, prepare the download manifest and download the data:
 
 ```bash
 cd /work
@@ -128,11 +137,11 @@ python /work/code/whisper/tensorrt/utils/download_librispeech.py \
 ls -lh /work/build/data/whisper-large-v3
 ```
 
-## 4. 数据处理
+## 4. Data Processing
 
-本节命令需要在 NVIDIA Docker 容器内执行。若还没有进入容器，先完成第 2 节的 Docker 镜像下载和容器启动。
+Run the commands in this section inside the NVIDIA Docker container. If you have not entered the container yet, complete Section 2 to pull the Docker image and start the container.
 
-如果当前代码库没有 B300 x1 Whisper 配置，先从相近配置复制一个起点：
+If the current codebase does not have a B300 x1 Whisper configuration, first copy a nearby configuration as a starting point:
 
 ```bash
 cd /work
@@ -159,7 +168,7 @@ PY
 fi
 ```
 
-执行预处理：
+Run preprocessing:
 
 ```bash
 cd /work
@@ -174,14 +183,14 @@ cp 3rdparty/mlc-inference/speech2text/utils/inference_librispeech.csv \
 BENCHMARKS="whisper" make preprocess_data
 ```
 
-检查预处理产物：
+Check preprocessing outputs:
 
 ```bash
 ls -lh /work/build/preprocessed_data/whisper-large-v3
 ls -lh /work/build/preprocessed_data/whisper-large-v3/dev-all-repack.json
 ```
 
-可选生成 checkpoint 和 engines：
+Optionally generate the checkpoint and engines:
 
 ```bash
 cd /work
@@ -191,11 +200,11 @@ export SYSTEM_NAME=B300-SXM-270GBx1
 make generate_engines RUN_ARGS="--benchmarks=whisper --scenarios=Offline"
 ```
 
-## 5. 跑测试
+## 5. Run Tests
 
-### 1）. 跑 PerformanceOnly
+### 1. Run PerformanceOnly
 
-Whisper B300 x1 使用：
+Use the following for Whisper on B300 x1:
 
 ```text
 SYSTEM_NAME=B300-SXM-270GBx1
@@ -213,7 +222,7 @@ export RUN_ARGS="--benchmarks=whisper --scenarios=Offline --test_mode=Performanc
 make run_harness RUN_ARGS="$RUN_ARGS"
 ```
 
-### 2）. 跑 AccuracyOnly
+### 2. Run AccuracyOnly
 
 ```bash
 cd /work
@@ -227,9 +236,9 @@ export RUN_ARGS="--benchmarks=whisper --scenarios=Offline --test_mode=AccuracyOn
 make run_harness RUN_ARGS="$RUN_ARGS"
 ```
 
-### 3）. 跑涉及的 Audit
+### 3. Run Required Audit Tests
 
-Whisper 涉及 TEST01，通过 `run_audit_harness` 运行。
+Whisper requires TEST01, run through `run_audit_harness`.
 
 ```bash
 cd /work

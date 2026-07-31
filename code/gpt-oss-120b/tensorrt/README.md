@@ -1,17 +1,17 @@
-# NVIDIA B300 x1 GPT-OSS-120B  测试执行文档
+# NVIDIA B300 x1 GPT-OSS-120B Test Execution Runbook
 
 
-## 1. 模型下载
+## 1. Model Download
 
-GPT-OSS-120B B300 x1 使用 MLCommons storage 中的模型文件。
+GPT-OSS-120B on B300 x1 uses model files from MLCommons storage.
 
-目标目录：
+Target directory:
 
 ```text
 $MLPERF_SCRATCH_PATH/models/gpt-oss-model/gpt-oss-120b
 ```
 
-期望路径：
+Expected path:
 
 ```text
 $MLPERF_SCRATCH_PATH/models/gpt-oss/gpt-oss-120b
@@ -95,26 +95,56 @@ ls -lh "$TARGET_DIR"/config.json "$TARGET_DIR"/tokenizer.json "$TARGET_DIR"/mode
 ls -l "$MLPERF_SCRATCH_PATH/models/gpt-oss/gpt-oss-120b"
 ```
 
-期望结果：
+Expected result:
 
 ```text
 safetensors count: 15
 ```
 
-## 2. 下载 Docker（使用 NVIDIA Docker）
+## 2. Download Docker (Use NVIDIA Docker)
 
-B300 x86 机器使用 NVIDIA x86 MLPerf TensorRT-LLM 镜像。
+Use the NVIDIA x86 MLPerf TensorRT-LLM image on B300 x86 machines.
 
-拉取 NVIDIA Docker 镜像：
+Pull the NVIDIA Docker image:
 
 ```bash
 docker pull nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-进入容器
+Clone the VibeHPC project and prepare third-party repositories:
 
 ```bash
-export VibeHPC_PATH=/path/to
+export VibeHPC_REPO=/path/to/VibeHPC/inference_results_v6.0.git
+export VibeHPC_ROOT=/path/to/inference_results_v6.0
+
+git clone --progress "$VibeHPC_REPO" "$VibeHPC_ROOT"
+
+cd "$VibeHPC_ROOT/closed/NVIDIA"
+export VibeHPC_PATH="$(pwd)"
+
+mkdir -p 3rdparty
+
+git clone --depth 1 --progress https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
+git clone --depth 1 --progress https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
+
+cd 3rdparty/mlc-inference
+git submodule update --init --recursive --jobs 8
+
+cd ../trtllm
+
+git config --global --add safe.directory '*'
+git fetch --all --tags
+
+git checkout v1.3.0rc0
+
+git rev-parse HEAD
+git describe --tags --always
+```
+
+Enter the container:
+
+```bash
+export VibeHPC_PATH=/path/to/inference_results_v6.0/closed/NVIDIA
 export MLPERF_SCRATCH_PATH=/path/to
 
 docker run --rm -it \
@@ -130,7 +160,7 @@ docker run --rm -it \
   nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-容器内建议先执行：
+Inside the container, run the following first:
 
 ```bash
 cd /work
@@ -143,30 +173,9 @@ mkdir -p $MLPERF_SCRATCH_PATH/logs
 ln -sfn $MLPERF_SCRATCH_PATH/logs build/logs
 ```
 
-准备第三方库：
+## 3. Data Download
 
-```bash
-cd /work
-mkdir -p 3rdparty
-
-if [ ! -d 3rdparty/trtllm ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
-fi
-
-if [ ! -d 3rdparty/mlc-inference ]; then
-  git clone --recurse-submodules https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
-fi
-
-if [ ! -d 3rdparty/mitten ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/mitten.git 3rdparty/mitten
-fi
-
-git config --global --add safe.directory /work/3rdparty/trtllm
-```
-
-## 3. 下载数据
-
-创建 venv，并使用 `mlc-scripts` 下载 GPT-OSS-120B 数据。
+Create a venv and use `mlc-scripts` to download GPT-OSS-120B data.
 
 ```bash
 set -euxo pipefail
@@ -188,7 +197,7 @@ mlcr get-dataset-mlperf-inference-gpt-oss,_mlc,_r2-downloader \
   -j
 ```
 
-整理为 NVIDIA harness 期望的数据目录：
+Arrange the files into the data directory expected by the NVIDIA harness:
 
 ```bash
 export MLPERF_SCRATCH_PATH=/path/to
@@ -210,11 +219,11 @@ ls -lh "$MLPERF_SCRATCH_PATH/data/gpt-oss/v4/acc"
 ls -lh "$MLPERF_SCRATCH_PATH/data/gpt-oss/v4/perf"
 ```
 
-## 4. 数据处理
+## 4. Data Processing
 
-本节命令需要在 NVIDIA Docker 容器内执行。若还没有进入容器，先完成第 2 节的 Docker 镜像下载和容器启动，再回到本节运行预处理。
+Run the commands in this section inside the NVIDIA Docker container. If you have not entered the container yet, complete Section 2 to pull the Docker image and start the container, then return here for preprocessing.
 
-进入容器后初始化目录链接：
+After entering the container, initialize directory links:
 
 ```bash
 cd /work
@@ -230,7 +239,7 @@ ln -sfn $MLPERF_SCRATCH_PATH/logs build/logs
 ls -l build
 ```
 
-期望链接：
+Expected links:
 
 ```text
 build/data -> $MLPERF_SCRATCH_PATH/data
@@ -239,7 +248,7 @@ build/preprocessed_data -> $MLPERF_SCRATCH_PATH/preprocessed_data
 build/logs -> $MLPERF_SCRATCH_PATH/logs
 ```
 
-生成 `input_ids_padded.npy` 和 `input_lens.npy`：
+Generate `input_ids_padded.npy` and `input_lens.npy`:
 
 ```bash
 set -euxo pipefail
@@ -270,7 +279,7 @@ python code/gpt-oss-120b/tensorrt/preprocess_compliance_data.py \
   --tokenizer "$MLPERF_SCRATCH_PATH/models/gpt-oss-model/gpt-oss-120b"
 ```
 
-检查预处理产物：
+Check preprocessing outputs:
 
 ```bash
 export MLPERF_SCRATCH_PATH=/path/to
@@ -296,7 +305,7 @@ for rel, n in [
 PY
 ```
 
-确认模型兼容路径：
+Confirm the model compatibility path:
 
 ```bash
 cd /work
@@ -310,17 +319,17 @@ ls -l build/models/gpt-oss/gpt-oss-120b
 ls -lh build/models/gpt-oss/gpt-oss-120b/config.json
 ```
 
-## 5. 跑测试
+## 5. Run Tests
 
-### 1）. 跑 PerformanceOnly
+### 1. Run PerformanceOnly
 
-GPT-OSS-120B B300 x1 使用：
+Use the following for GPT-OSS-120B on B300 x1:
 
 ```text
 SYSTEM_NAME=B300-SXM-270GBx1
 ```
 
-启动服务前建议清理残留进程：
+Before starting the service, clean up any leftover processes:
 
 ```bash
 echo "== before =="
@@ -343,7 +352,7 @@ echo "== after kill =="
 nvidia-smi
 ```
 
-启动 endpoint。此终端保持运行，不要关闭：
+Start the endpoint. Keep this terminal running:
 
 ```bash
 cd /work
@@ -357,7 +366,7 @@ export RUN_ARGS="--benchmarks=gpt-oss-120b --scenarios=Offline --core_type=trtll
 make run_llm_server
 ```
 
-服务启动后，在另一个终端进入同一个容器，或重新启动一个挂载相同目录的容器，然后运行 harness：
+After the service starts, enter the same container from another terminal or start another container with the same mounts, then run the harness:
 
 ```bash
 cd /work
@@ -371,9 +380,9 @@ export RUN_ARGS="--benchmarks=gpt-oss-120b --scenarios=Offline --core_type=trtll
 make run_harness
 ```
 
-### 2）. 跑 AccuracyOnly
+### 2. Run AccuracyOnly
 
-AccuracyOnly 建议重新启动 fresh endpoint。先停止 PerformanceOnly 的 server，再在 server 终端执行：
+For AccuracyOnly, start a fresh endpoint. Stop the PerformanceOnly server first, then run the following in the server terminal:
 
 ```bash
 cd /work
@@ -387,7 +396,7 @@ export RUN_ARGS="--benchmarks=gpt-oss-120b --scenarios=Offline --core_type=trtll
 make run_llm_server
 ```
 
-等 server ready 后，在另一个终端运行 accuracy harness：
+After the server is ready, run the accuracy harness in another terminal:
 
 ```bash
 cd /work
@@ -401,11 +410,11 @@ export RUN_ARGS="--benchmarks=gpt-oss-120b --scenarios=Offline --core_type=trtll
 make run_harness
 ```
 
-### 3）. 跑涉及的 Audit
+### 3. Run Required Audit Tests
 
-GPT-OSS-120B 涉及 TEST07 和 TEST09。
+GPT-OSS-120B requires TEST07 and TEST09.
 
-TEST07 建议重新启动 fresh endpoint：
+For TEST07, start a fresh endpoint:
 
 ```bash
 cd /work
@@ -419,7 +428,7 @@ export RUN_ARGS="--benchmarks=gpt-oss-120b --scenarios=Offline --core_type=trtll
 make run_llm_server
 ```
 
-等 server ready 后，在另一个终端运行 TEST07：
+After the server is ready, run TEST07 in another terminal:
 
 ```bash
 cd /work
@@ -433,7 +442,7 @@ export RUN_ARGS="--benchmarks=gpt-oss-120b --scenarios=Offline --core_type=trtll
 make run_audit_test07
 ```
 
-TEST09 建议重新启动 fresh endpoint：
+For TEST09, start a fresh endpoint:
 
 ```bash
 cd /work
@@ -447,7 +456,7 @@ export RUN_ARGS="--benchmarks=gpt-oss-120b --scenarios=Offline --core_type=trtll
 make run_llm_server
 ```
 
-等 server ready 后，在另一个终端运行 TEST09：
+After the server is ready, run TEST09 in another terminal:
 
 ```bash
 cd /work

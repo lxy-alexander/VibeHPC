@@ -1,17 +1,17 @@
-# NVIDIA B300 x1 Llama2-70B  测试执行文档
+# NVIDIA B300 x1 Llama2-70B Test Execution Runbook
 
 
-## 1. 模型下载
+## 1. Model Download
 
-Llama2-70B 可从原始 Hugging Face checkpoint 量化，也可直接使用已经转换完成的 TensorRT-LLM NVFP4 checkpoint。
+Llama2-70B can be quantized from the original Hugging Face checkpoint, or you can directly use an already converted TensorRT-LLM NVFP4 checkpoint.
 
-推荐 checkpoint 目录：
+Recommended checkpoint directory:
 
 ```text
 $MLPERF_SCRATCH_PATH/models/Llama2/fp4-quantized-modelopt/llama2-70b-chat-hf-tp1pp1-fp4
 ```
 
-如果已有转换后的 checkpoint，直接同步到目标目录：
+If you already have the converted checkpoint, sync it directly to the target directory:
 
 ```bash
 set -euxo pipefail
@@ -30,7 +30,7 @@ du -sh "$TARGET_CKPT"
 ls -lh "$TARGET_CKPT"
 ```
 
-期望 checkpoint 特征：
+Expected checkpoint characteristics:
 
 ```text
 Architecture: LlamaForCausalLM
@@ -40,20 +40,50 @@ Quantization: NVFP4
 KV cache dtype: FP8
 ```
 
-## 2. 下载 Docker（使用 NVIDIA Docker）
+## 2. Download Docker (Use NVIDIA Docker)
 
-B300 x86 机器使用 NVIDIA x86 MLPerf TensorRT-LLM 镜像。
+Use the NVIDIA x86 MLPerf TensorRT-LLM image on B300 x86 machines.
 
-拉取 NVIDIA Docker 镜像：
+Pull the NVIDIA Docker image:
 
 ```bash
 docker pull nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-进入容器：
+Clone the VibeHPC project and prepare third-party repositories:
 
 ```bash
-export VibeHPC_PATH=/path/to
+export VibeHPC_REPO=/path/to/VibeHPC/inference_results_v6.0.git
+export VibeHPC_ROOT=/path/to/inference_results_v6.0
+
+git clone --progress "$VibeHPC_REPO" "$VibeHPC_ROOT"
+
+cd "$VibeHPC_ROOT/closed/NVIDIA"
+export VibeHPC_PATH="$(pwd)"
+
+mkdir -p 3rdparty
+
+git clone --depth 1 --progress https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
+git clone --depth 1 --progress https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
+
+cd 3rdparty/mlc-inference
+git submodule update --init --recursive --jobs 8
+
+cd ../trtllm
+
+git config --global --add safe.directory '*'
+git fetch --all --tags
+
+git checkout v1.3.0rc0
+
+git rev-parse HEAD
+git describe --tags --always
+```
+
+Enter the container:
+
+```bash
+export VibeHPC_PATH=/path/to/inference_results_v6.0/closed/NVIDIA
 export MLPERF_SCRATCH_PATH=/path/to
 
 docker run --rm -it \
@@ -70,7 +100,7 @@ docker run --rm -it \
   nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 ```
 
-容器内建议先执行：
+Inside the container, run the following first:
 
 ```bash
 cd /work
@@ -86,30 +116,9 @@ ln -sfn "$MLPERF_SCRATCH_PATH/logs" /work/build/logs
 ls -l /work/build
 ```
 
-准备第三方库：
+## 3. Data Download
 
-```bash
-cd /work
-mkdir -p 3rdparty
-
-if [ ! -d 3rdparty/trtllm ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
-fi
-
-if [ ! -d 3rdparty/mlc-inference ]; then
-  git clone --recurse-submodules https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
-fi
-
-if [ ! -d 3rdparty/mitten ]; then
-  git clone --recurse-submodules https://github.com/NVIDIA/mitten.git 3rdparty/mitten
-fi
-
-git config --global --add safe.directory /work/3rdparty/trtllm
-```
-
-## 3. 下载数据
-
-在容器内使用 NVIDIA harness 下载数据：
+Inside the container, use the NVIDIA harness to download data:
 
 ```bash
 cd /work
@@ -121,17 +130,17 @@ make link_dirs
 BENCHMARKS="llama2-70b" make download_data
 ```
 
-检查下载结果：
+Check download results:
 
 ```bash
 find "$MLPERF_SCRATCH_PATH/data" -maxdepth 3 -iname "*llama2*" -o -iname "*cnn*"
 ```
 
-## 4. 数据处理
+## 4. Data Processing
 
-本节命令需要在 NVIDIA Docker 容器内执行。若还没有进入容器，先完成第 2 节的 Docker 镜像下载和容器启动。
+Run the commands in this section inside the NVIDIA Docker container. If you have not entered the container yet, complete Section 2 to pull the Docker image and start the container.
 
-设置 MLPerf Inference v6.1 RNG seeds：
+Set the MLPerf Inference v6.1 RNG seeds:
 
 ```bash
 cd /work
@@ -177,7 +186,7 @@ PY
 python3 -m py_compile "$LOADGEN"
 ```
 
-预处理数据：
+Preprocess data:
 
 ```bash
 cd /work
@@ -192,7 +201,7 @@ find /work/build/preprocessed_data/llama2-70b \
   -maxdepth 3 -type f | sort | head -n 100
 ```
 
-检查 B300 x1 配置：
+Check the B300 x1 configuration:
 
 ```bash
 cd /work
@@ -205,7 +214,7 @@ grep -nE "min_duration|performance_sample_count|offline_expected_qps|gpu_batch_s
   "$CFG_70B"
 ```
 
-生成或确认 engine：
+Generate or confirm the engine:
 
 ```bash
 cd /work
@@ -217,7 +226,7 @@ make generate_engines \
   SYSTEM_NAME="$SYSTEM_NAME"
 ```
 
-检查 engine：
+Check the engine:
 
 ```bash
 ENGINE_70B=/work/build/engines/B300-SXM-270GBx1/Offline/llama2-70b/gpu-fp4-b3072-tp1-pp1.cp990
@@ -240,11 +249,11 @@ for key in ("max_batch_size", "max_num_tokens", "max_input_len", "max_seq_len"):
 PY
 ```
 
-## 5. 跑测试
+## 5. Run Tests
 
-### 1）. 跑 PerformanceOnly
+### 1. Run PerformanceOnly
 
-Llama2-70B B300 x1 使用：
+Use the following for Llama2-70B on B300 x1:
 
 ```text
 SYSTEM_NAME=B300-SXM-270GBx1
@@ -268,14 +277,14 @@ make run_harness \
   2>&1 | tee "$LOG"
 ```
 
-检查：
+Check:
 
 ```bash
 grep -E "qsl_rng_seed|sample_index_rng_seed|schedule_rng_seed|Result is|Min duration satisfied|Min queries satisfied|result_tokens_per_second|INVALID|VALID" \
   "$LOG" | tail -n 80
 ```
 
-### 2）. 跑 AccuracyOnly
+### 2. Run AccuracyOnly
 
 ```bash
 cd /work
@@ -292,7 +301,7 @@ make run_harness \
   2>&1 | tee "$LOG"
 ```
 
-检查：
+Check:
 
 ```bash
 grep -E "qsl_rng_seed|sample_index_rng_seed|schedule_rng_seed" "$LOG" | tail -n 10
