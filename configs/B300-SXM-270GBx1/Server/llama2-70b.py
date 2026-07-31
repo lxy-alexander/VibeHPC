@@ -35,13 +35,6 @@ ifb_config = {
         'use_paged_context_fmha': 'enable',
         'tokens_per_block': 32,
         'norm_quant_fusion': 'enable',
-        'torch_compile_config': {
-            'enable_fullgraph': True,
-            'enable_inductor': False,
-            'enable_piecewise_cuda_graph': True,
-            'enable_userbuffers': True,
-            'capture_num_tokens': [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1280, 1536, 1792, 2048, 2304, 2560, 2816, 3072, 3328, 3584, 3840, 4096, 4352, 4608],
-        },
     },
     llm_fields.trtllm_checkpoint_flags: {
         'kv_cache_dtype': 'fp8',
@@ -68,11 +61,33 @@ ifb_config = {
 }
 
 EXPORTS = {
-    C.WorkloadSetting(C.HarnessType.Custom, C.AccuracyTarget(0.99), C.PowerSetting.MaxP): ifb_config,
+    C.WorkloadSetting(
+        C.HarnessType.Custom,
+        C.AccuracyTarget(0.99),
+        C.PowerSetting.MaxP,
+    ): ifb_config,
+
+    C.WorkloadSetting(
+        C.HarnessType.Custom,
+        C.AccuracyTarget(0.999),
+        C.PowerSetting.MaxP,
+    ): ifb_config,
 }
 
 ATOMIC_EXPORTS = {
-    C.WorkloadSetting(C.HarnessType.Custom, C.AccuracyTarget(0.99), C.PowerSetting.MaxP): {
+    C.WorkloadSetting(
+        C.HarnessType.Custom,
+        C.AccuracyTarget(0.99),
+        C.PowerSetting.MaxP,
+    ): {
+        "default": ifb_config,
+    },
+
+    C.WorkloadSetting(
+        C.HarnessType.Custom,
+        C.AccuracyTarget(0.999),
+        C.PowerSetting.MaxP,
+    ): {
         "default": ifb_config,
     },
 }
