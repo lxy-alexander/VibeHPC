@@ -1,0 +1,14 @@
+# GPT-OSS-120B accuracy evaluation requirements
+datasets==3.6.0
+pylatexenc==2.10
+pandas==3.0.0
+pyarrow==23.0.0
+
+# From mlc-inference/language/gpt-oss-120b/requirements.txt
+absl-py==2.4.0
+anthropic==0.76.0
+joblib==1.5.3
+scikit-learn==1.8.0
+
+# LiveCodeBench for code evaluation
+-e /work/3rdparty/mlc-inference/language/gpt-oss-120b/submodules/LiveCodeBench
