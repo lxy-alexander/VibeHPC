@@ -44,6 +44,6 @@ EXPORTS = {
         wan22_a14b_fields.cpu_offload_stride: 1,
 
         # LoadGen settings
-        loadgen_fields.offline_expected_qps: 0.04,
+        loadgen_fields.offline_expected_qps: 0.08,
     },
 }

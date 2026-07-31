@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""B300-SXM-270GBx8 configuration for WAN22-A14B (Wan2.2 T2V) Offline scenario."""
+"""B200-SXM-180GBx1 configuration for WAN22-A14B (Wan2.2 T2V) Offline scenario."""
 
 import code.common.constants as C
 from importlib import import_module
@@ -37,13 +37,14 @@ EXPORTS = {
         wan22_a14b_fields.linear_type: 'te-fp8-per-tensor',
 
         # Multi-device parallelism
-        wan22_a14b_fields.ulysses_size: 1,
+        # Set ulysses_size=8 when launching with: torchrun --nproc_per_node=8
+        wan22_a14b_fields.ulysses_size: 1,  # Single GPU by default
         wan22_a14b_fields.cfg_size: 1,
-        wan22_a14b_fields.dp_size: 8,
+        wan22_a14b_fields.dp_size: 1,
         wan22_a14b_fields.enable_visual_gen_cpu_offload: False,
         wan22_a14b_fields.cpu_offload_stride: 1,
 
         # LoadGen settings
-        loadgen_fields.offline_expected_qps: 0.10,
+        loadgen_fields.offline_expected_qps: 0.01,  # Videos per second
     },
 }
