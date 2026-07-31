@@ -10,6 +10,34 @@ Third-party attribution notices are kept in `attributions.txt` at the repository
 root. That file includes the NVIDIA Apache License 2.0 notice and notices for
 PyTorch, TensorFlow, Caffe, and Caffe2-derived components.
 
+== Contributors and Attribution
+
+Local modifications:
+
+* VibeHPC
+
+Upstream and third-party attribution:
+
+* NVIDIA Corporation
+* MLCommons
+* Facebook / Meta and PyTorch contributors
+* Google / Google Brain Team and TensorFlow contributors
+* Caffe and Caffe2 contributors
+* Yangqing Jia
+* Kakao Brain
+* The Regents of the University of California
+* Idiap Research Institute
+* DeepMind Technologies
+* NEC Laboratories America
+* NYU
+* Other third-party contributors identified in `attributions.txt`, downloaded
+  model or dataset license files, and source file headers
+
+These entries are attribution notices for upstream and third-party materials.
+They do not make those parties VibeHPC contributors and do not transfer
+ownership of NVIDIA, MLCommons, model, dataset, or third-party materials to
+VibeHPC.
+
 Before final packaging:
 
 * keep `attributions.txt` in the submitted tree
