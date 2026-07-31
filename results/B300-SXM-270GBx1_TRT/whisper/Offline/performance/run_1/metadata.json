@@ -1,0 +1,131 @@
+{
+    "avg_power": null,
+    "base_log_dir": "/work/build/logs/2026.07.21-03.05.19",
+    "benchmark_full": "whisper",
+    "benchmark_short": "whisper",
+    "detected_system": {
+        "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+        "data": {
+            "_component_classname": "System",
+            "_component_module": "nvmitten.system.system",
+            "_match_ignore_fields": [],
+            "fields": {
+                "accelerators": {
+                    "__obj_class__": "<class 'nvmitten.json_utils.ClassKeyedDict'>",
+                    "data": [
+                        {
+                            "key.module": "nvmitten.nvidia.accelerator",
+                            "key.name": "GPU",
+                            "value": [
+                                {
+                                    "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+                                    "data": {
+                                        "_component_classname": "GPU",
+                                        "_component_module": "nvmitten.nvidia.accelerator",
+                                        "_match_ignore_fields": [],
+                                        "fields": {
+                                            "is_integrated": false,
+                                            "max_power_limit": {
+                                                "__obj_class__": "<class 'nvmitten.interval.NumericRange'>",
+                                                "data": {
+                                                    "rel_tol": 0.05,
+                                                    "start": 1100.0
+                                                }
+                                            },
+                                            "pci_id": "0x318210DE",
+                                            "vram": {
+                                                "__obj_class__": "<class 'nvmitten.interval.NumericRange'>",
+                                                "data": {
+                                                    "rel_tol": 0.05,
+                                                    "start": {
+                                                        "__obj_class__": "<class 'nvmitten.memory.Memory'>",
+                                                        "data": {
+                                                            "base": 1024,
+                                                            "human_readable_UNUSED": "267.69 GiB",
+                                                            "num_bytes": 287428771840
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "key.module": "nvmitten.nvidia.accelerator",
+                            "key.name": "DLA",
+                            "value": []
+                        }
+                    ]
+                },
+                "cpu": {
+                    "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+                    "data": {
+                        "_component_classname": "CPU",
+                        "_component_module": "nvmitten.system.cpu",
+                        "_match_ignore_fields": [],
+                        "fields": {
+                            "architecture": {
+                                "__ENUM__": [
+                                    "nvmitten.constants",
+                                    "CPUArchitecture"
+                                ],
+                                "name": "x86_64"
+                            },
+                            "vendor": "GenuineIntel"
+                        }
+                    }
+                },
+                "extras": {
+                    "id": "B300-SXM-270GBx1",
+                    "primary_compute_sm": {
+                        "__obj_class__": "<class 'nvmitten.nvidia.constants.ComputeSM'>",
+                        "data": 103
+                    },
+                    "tags": {
+                        "__SET__": [
+                            "start_from_device_enabled",
+                            "is_blackwell",
+                            "gpu_based"
+                        ]
+                    }
+                },
+                "host_memory": {
+                    "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+                    "data": {
+                        "_component_classname": "HostMemory",
+                        "_component_module": "nvmitten.system.memory",
+                        "_match_ignore_fields": [],
+                        "fields": {
+                            "capacity": {
+                                "__obj_class__": "<class 'nvmitten.memory.Memory'>",
+                                "data": {
+                                    "base": 1000,
+                                    "human_readable_UNUSED": "356.82 GB",
+                                    "num_bytes": 356820036000
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "early_stopping_met": true,
+    "effective_min_duration_ms": 600000,
+    "effective_samples_per_query": 429000,
+    "power_meter_enabled": false,
+    "result_samples_per_second": 111.239,
+    "result_tokens_per_second": 7058.95,
+    "result_validity": "VALID",
+    "satisfies_query_constraint": true,
+    "scenario": "Offline",
+    "scenario_key": "result_tokens_per_second",
+    "system_name": "B300-SXM-270GBx1_TRT",
+    "tensorrt_version": "10.14.1.48",
+    "test_mode": "PerformanceOnly",
+    "true_result_metric": "result_tokens_per_second",
+    "true_result_value": 7058.95,
+    "workload_setting_code": "cp990"
+}
