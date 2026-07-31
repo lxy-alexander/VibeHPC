@@ -1,0 +1,191 @@
+{
+    "accuracy": [
+        {
+            "name": "ROUGE1",
+            "pass": true,
+            "threshold": 38.391408000000006,
+            "value": 38.5378
+        },
+        {
+            "name": "ROUGE2",
+            "pass": true,
+            "threshold": 15.748425000000001,
+            "value": 15.764
+        },
+        {
+            "name": "ROUGEL",
+            "pass": true,
+            "threshold": 24.250743,
+            "value": 24.3237
+        },
+        {
+            "name": "ROUGELSUM",
+            "pass": true,
+            "threshold": 35.435069999999996,
+            "value": 35.5571
+        },
+        {
+            "name": "GEN_LEN",
+            "pass": true,
+            "threshold": 7350879.600000001,
+            "value": 8191033.0
+        }
+    ],
+    "accuracy_pass": true,
+    "accuracy_raw": [
+        [
+            "ROUGE1",
+            38.5378,
+            38.391408000000006
+        ],
+        [
+            "ROUGE2",
+            15.764,
+            15.748425000000001
+        ],
+        [
+            "ROUGEL",
+            24.3237,
+            24.250743
+        ],
+        [
+            "ROUGELSUM",
+            35.5571,
+            35.435069999999996
+        ],
+        [
+            "GEN_LEN",
+            8191033.0,
+            7350879.600000001
+        ]
+    ],
+    "avg_power": null,
+    "base_log_dir": "/work/build/logs/2026.07.31-10.49.16",
+    "benchmark_full": "llama3.1-8b",
+    "benchmark_short": "llama3_1-8b",
+    "detected_system": {
+        "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+        "data": {
+            "_component_classname": "System",
+            "_component_module": "nvmitten.system.system",
+            "_match_ignore_fields": [],
+            "fields": {
+                "accelerators": {
+                    "__obj_class__": "<class 'nvmitten.json_utils.ClassKeyedDict'>",
+                    "data": [
+                        {
+                            "key.module": "nvmitten.nvidia.accelerator",
+                            "key.name": "GPU",
+                            "value": [
+                                {
+                                    "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+                                    "data": {
+                                        "_component_classname": "GPU",
+                                        "_component_module": "nvmitten.nvidia.accelerator",
+                                        "_match_ignore_fields": [],
+                                        "fields": {
+                                            "is_integrated": false,
+                                            "max_power_limit": {
+                                                "__obj_class__": "<class 'nvmitten.interval.NumericRange'>",
+                                                "data": {
+                                                    "rel_tol": 0.05,
+                                                    "start": 1100.0
+                                                }
+                                            },
+                                            "pci_id": "0x318210DE",
+                                            "vram": {
+                                                "__obj_class__": "<class 'nvmitten.interval.NumericRange'>",
+                                                "data": {
+                                                    "rel_tol": 0.05,
+                                                    "start": {
+                                                        "__obj_class__": "<class 'nvmitten.memory.Memory'>",
+                                                        "data": {
+                                                            "base": 1024,
+                                                            "human_readable_UNUSED": "267.69 GiB",
+                                                            "num_bytes": 287428771840
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "key.module": "nvmitten.nvidia.accelerator",
+                            "key.name": "DLA",
+                            "value": []
+                        }
+                    ]
+                },
+                "cpu": {
+                    "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+                    "data": {
+                        "_component_classname": "CPU",
+                        "_component_module": "nvmitten.system.cpu",
+                        "_match_ignore_fields": [],
+                        "fields": {
+                            "architecture": {
+                                "__ENUM__": [
+                                    "nvmitten.constants",
+                                    "CPUArchitecture"
+                                ],
+                                "name": "x86_64"
+                            },
+                            "vendor": "GenuineIntel"
+                        }
+                    }
+                },
+                "extras": {
+                    "id": "B300-SXM-270GBx1",
+                    "primary_compute_sm": {
+                        "__obj_class__": "<class 'nvmitten.nvidia.constants.ComputeSM'>",
+                        "data": 103
+                    },
+                    "tags": {
+                        "__SET__": [
+                            "gpu_based",
+                            "is_blackwell",
+                            "custom"
+                        ]
+                    }
+                },
+                "host_memory": {
+                    "__obj_class__": "<class 'nvmitten.system.component.Description'>",
+                    "data": {
+                        "_component_classname": "HostMemory",
+                        "_component_module": "nvmitten.system.memory",
+                        "_match_ignore_fields": [],
+                        "fields": {
+                            "capacity": {
+                                "__obj_class__": "<class 'nvmitten.memory.Memory'>",
+                                "data": {
+                                    "base": 1000,
+                                    "human_readable_UNUSED": "356.82 GB",
+                                    "num_bytes": 356820028000
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "early_stopping_met": null,
+    "effective_min_duration_ms": 600000,
+    "effective_min_query_count": 100,
+    "power_meter_enabled": false,
+    "result_completed_tokens_per_second": null,
+    "result_validity": null,
+    "satisfies_query_constraint": false,
+    "scenario": "Server",
+    "scenario_key": "result_completed_tokens_per_second",
+    "summary_string": "[PASSED] ROUGE1: 38.538 (Threshold=38.391) | [PASSED] ROUGE2: 15.764 (Threshold=15.748) | [PASSED] ROUGEL: 24.324 (Threshold=24.251) | [PASSED] ROUGELSUM: 35.557 (Threshold=35.435) | [PASSED] GEN_LEN: 8191033.000 (Threshold=7350879.600)",
+    "system_name": "B300-SXM-270GBx1_TRT",
+    "tensorrt_version": "10.14.1.48",
+    "test_mode": "AccuracyOnly",
+    "true_result_metric": "result_completed_tokens_per_second",
+    "true_result_value": 0.0,
+    "workload_setting_code": "cp990"
+}
