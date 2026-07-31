@@ -22,7 +22,7 @@ MAKEFILE_SUBMISSION_INCLUDED := 1
 
 
 # ==================== INSTRUCTIONS ====================
-# For a proper submission, read the documentation in documentation/submission_guide.md.
+# For a proper submission, read the documentation in documentation/README.md.
 #
 # For basic usage:
 # 1. Make sure all of the workloads you want to submit have the required logs in build/logs. This includes:
@@ -101,13 +101,13 @@ truncate_results:
 # update tracker sheet based on checker's result
 .PHONY: summarize_results
 summarize_results: pull_artifacts_repo export_submission
-	$(MAKE) -f Makefile.submission check_submission "RUN_ARGS=--csv closed/NVIDIA/build/artifacts/closed/NVIDIA/results/out.csv"
-	cp ../../build/submission/closed/NVIDIA/results/submission_checker_log.txt $(ARTIFACTS_DIR)/closed/NVIDIA/results/submission_checker_log.txt
+	$(MAKE) -f Makefile.submission check_submission "RUN_ARGS=--csv closed/$(SUBMITTER)/build/artifacts/closed/$(SUBMITTER)/results/out.csv"
+	cp ../../build/submission/closed/$(SUBMITTER)/results/submission_checker_log.txt $(ARTIFACTS_DIR)/closed/$(SUBMITTER)/results/submission_checker_log.txt
 	@$(MAKE) -f Makefile.docker build_mlperf_docker BASE_IMAGE=nvcr.io/nvidia/pytorch:25.05-py3 ARGS="--base_requirements --mitten --loadgen"
 	$(MAKE) -f Makefile.docker attach_docker \
 		DOCKER_ARGS="-e PYTHONPATH=/work" \
 		DOCKER_COMMAND="bash -c '\
-		python3 -m pip install -r build/artifacts/closed/NVIDIA/scripts/results_analysis/requirements_gcp.txt && \
+		python3 -m pip install -r build/artifacts/closed/$(SUBMITTER)/scripts/results_analysis/requirements_gcp.txt && \
 		python3 -m build.artifacts.closed.NVIDIA.scripts.results_analysis.summarize_results $(RUN_ARGS)'"
 
 

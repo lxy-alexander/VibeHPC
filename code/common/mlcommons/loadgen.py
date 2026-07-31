@@ -40,6 +40,11 @@ from ...fields import harness as harness_fields
 from ...fields import loadgen as lg_fields
 from ...fields import models as model_fields
 
+
+def _submission_root():
+    return f"closed/{os.environ.get('SUBMITTER', 'NVIDIA')}"
+
+
 submission_checker_constants = import_from(
     [paths.MLCOMMONS_INF_REPO / "tools" / "submission" / "submission_checker"] + sys.path,
     "constants"
@@ -456,29 +461,30 @@ class LoadgenSettings:
 
     def export_readme(self):
         """Export README.md file with instructions for running the benchmark."""
+        submission_root = _submission_root()
         if "Triton_CPU" in self.system_name:
             readme_str = textwrap.dedent(f"""\
-            To run this benchmark, first follow the setup steps in `closed/NVIDIA/README_Triton_CPU.md`. Then to run the harness:
+            To run this benchmark, first follow the setup steps in `{submission_root}/README_Triton_CPU.md`. Then to run the harness:
 
             ```
             make run_harness RUN_ARGS="--benchmarks={self.benchmark.valstr} --scenarios={self.scenario.valstr} --test_mode=AccuracyOnly"
             make run_harness RUN_ARGS="--benchmarks={self.benchmark.valstr} --scenarios={self.scenario.valstr} --test_mode=PerformanceOnly"
             ```
 
-            For more details, please refer to `closed/NVIDIA/README_Triton_CPU.md`.""")
+            For more details, please refer to `{submission_root}/README_Triton_CPU.md`.""")
         elif "Triton" in self.system_name:
             readme_str = textwrap.dedent(f"""\
-            To run this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`. Then to run the harness:
+            To run this benchmark, first follow the setup steps in `{submission_root}/README.md`. Then to run the harness:
 
             ```
             make run_harness RUN_ARGS="--benchmarks={self.benchmark.valstr} --scenarios={self.scenario.valstr} --harness_type=triton --test_mode=AccuracyOnly"
             make run_harness RUN_ARGS="--benchmarks={self.benchmark.valstr} --scenarios={self.scenario.valstr} --harness_type=triton --test_mode=PerformanceOnly"
             ```
 
-            For more details, please refer to `closed/NVIDIA/README.md`.""")
+            For more details, please refer to `{submission_root}/README.md`.""")
         else:
             readme_str = textwrap.dedent(f"""\
-            To run this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`. Then to generate the TensorRT engines and run the harness:
+            To run this benchmark, first follow the setup steps in `{submission_root}/README.md`. Then to generate the TensorRT engines and run the harness:
 
             ```
             make generate_engines RUN_ARGS="--benchmarks={self.benchmark.valstr} --scenarios={self.scenario.valstr}"
@@ -486,31 +492,32 @@ class LoadgenSettings:
             make run_harness RUN_ARGS="--benchmarks={self.benchmark.valstr} --scenarios={self.scenario.valstr} --test_mode=PerformanceOnly"
             ```
 
-            For more details, please refer to `closed/NVIDIA/README.md`.""")
+            For more details, please refer to `{submission_root}/README.md`.""")
 
         if "HeteroMultiUse" in self.system_name:
-            readme_str = textwrap.dedent("""\
-            To run this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`. Then to generate the TensorRT
-            engines and run the harness, first read the **Using Multiple MIG slices** section in `closed/NVIDIA/README.md`.
-            Then follow the instructions in `closed/NVIDIA/documentation/heterogeneous_mig.md` to run benchmarks.""")
+            readme_str = textwrap.dedent(f"""\
+            To run this benchmark, first follow the setup steps in `{submission_root}/README.md`. Then to generate the TensorRT
+            engines and run the harness, first read the **Using Multiple MIG slices** section in `{submission_root}/README.md`.
+            Then follow the instructions in `{submission_root}/documentation/heterogeneous_mig.md` to run benchmarks.""")
 
         with (self.directory / "README.md").open(mode='w') as f:
             f.write(readme_str)
 
     def export_calib_adoc(self):
         """Export calibration process documentation."""
+        submission_root = _submission_root()
         if "Triton_CPU" in self.system_name:
             calibration_process_str = textwrap.dedent(f"""\
-            To calibrate this benchmark, please follow the steps in `closed/NVIDIA/calibration_triton_cpu/OpenVINO/{self.benchmark.valstr}/README.md`.""")
+            To calibrate this benchmark, please follow the steps in `{submission_root}/calibration_triton_cpu/OpenVINO/{self.benchmark.valstr}/README.md`.""")
         else:
             calibration_process_str = textwrap.dedent(f"""\
-            To calibrate this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`.
+            To calibrate this benchmark, first follow the setup steps in `{submission_root}/README.md`.
 
             ```
             make calibrate RUN_ARGS="--benchmarks={self.benchmark.valstr} --scenarios={self.scenario.valstr}"
             ```
 
-            For more details, please refer to `closed/NVIDIA/README.md`.""")
+            For more details, please refer to `{submission_root}/README.md`.""")
 
         with (self.directory / "calibration_process.adoc").open(mode='w') as f:
             f.write(calibration_process_str)
@@ -601,7 +608,8 @@ class LoadgenSettings:
 
     def export_powersetting_adoc(self):
         """Export power settings documentation."""
-        powersetting_str = textwrap.dedent("""\
+        submission_root = _submission_root()
+        powersetting_str = textwrap.dedent(f"""\
         ## An example of an unstructured document for Power management settings to reproduce Perf, Power results
 
         # Boot/BIOS Firmware Settings
@@ -615,7 +623,7 @@ class LoadgenSettings:
         # Power Management Settings  (command line or other)
 
         Run the scripts described in our code. See the **How to collect power measurements while running the harness**
-        section of the README.md located in closed/NVIDIA.
+        section of the README.md located in {submission_root}.
         """)
         with (self.directory / "power_settings.adoc").open(mode='w') as f:
             f.write(powersetting_str)

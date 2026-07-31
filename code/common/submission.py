@@ -43,6 +43,10 @@ parameter_scaling_map = {
 }
 
 
+def _submission_root():
+    return "closed/{:}".format(os.environ.get("SUBMITTER", "NVIDIA"))
+
+
 def generate_measurements_entry(system_name, short_benchmark_name, full_benchmark_name, scenario, input_dtype, precision, flag_dict):
     """Generate measurement entry files for MLPerf submission.
 
@@ -143,37 +147,40 @@ def generate_user_conf(user_conf_path, scenario, flag_dict):
 
 
 def generate_readme(readme_path, system_name, short_benchmark_name, scenario):
+    submission_root = _submission_root()
     if short_benchmark_name == "rgat":
-        readme_str = "Refer to closed/NVIDIA/code/rgat/pytorch/README.md"
+        readme_str = "Refer to {:}/code/rgat/pytorch/README.md".format(submission_root)
     elif "Triton_CPU" in system_name:
         readme_str = textwrap.dedent("""\
-        To run this benchmark, first follow the setup steps in `closed/NVIDIA/README_Triton_CPU.md`. Then to run the harness:
+        To run this benchmark, first follow the setup steps in `{submission_root}/README_Triton_CPU.md`. Then to run the harness:
 
         ```
         make run_harness RUN_ARGS="--benchmarks={benchmark} --scenarios={scenario} --test_mode=AccuracyOnly"
         make run_harness RUN_ARGS="--benchmarks={benchmark} --scenarios={scenario} --test_mode=PerformanceOnly"
         ```
 
-        For more details, please refer to `closed/NVIDIA/README_Triton_CPU.md`.""".format(
+        For more details, please refer to `{submission_root}/README_Triton_CPU.md`.""".format(
+            submission_root=submission_root,
             benchmark=short_benchmark_name,
             scenario=scenario.valstr))
 
     elif "Triton" in system_name:
         readme_str = textwrap.dedent("""\
-        To run this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`. Then to run the harness:
+        To run this benchmark, first follow the setup steps in `{submission_root}/README.md`. Then to run the harness:
 
         ```
         make run_harness RUN_ARGS="--benchmarks={benchmark} --scenarios={scenario} --harness_type=triton --test_mode=AccuracyOnly"
         make run_harness RUN_ARGS="--benchmarks={benchmark} --scenarios={scenario} --harness_type=triton --test_mode=PerformanceOnly"
         ```
 
-        For more details, please refer to `closed/NVIDIA/README.md`.""".format(
+        For more details, please refer to `{submission_root}/README.md`.""".format(
+            submission_root=submission_root,
             benchmark=short_benchmark_name,
             scenario=scenario.valstr))
 
     else:
         readme_str = textwrap.dedent("""\
-        To run this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`. Then to generate the TensorRT engines and run the harness:
+        To run this benchmark, first follow the setup steps in `{submission_root}/README.md`. Then to generate the TensorRT engines and run the harness:
 
         ```
         make generate_engines RUN_ARGS="--benchmarks={benchmark} --scenarios={scenario}"
@@ -181,36 +188,41 @@ def generate_readme(readme_path, system_name, short_benchmark_name, scenario):
         make run_harness RUN_ARGS="--benchmarks={benchmark} --scenarios={scenario} --test_mode=PerformanceOnly"
         ```
 
-        For more details, please refer to `closed/NVIDIA/README.md`.""".format(
+        For more details, please refer to `{submission_root}/README.md`.""".format(
+            submission_root=submission_root,
             benchmark=short_benchmark_name,
             scenario=scenario.valstr))
 
     if "HeteroMultiUse" in system_name:
         readme_str = textwrap.dedent("""\
-        To run this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`. Then to generate the TensorRT
-        engines and run the harness, first read the **Using Multiple MIG slices** section in `closed/NVIDIA/README.md`.
-        Then follow the instructions in `closed/NVIDIA/documentation/heterogeneous_mig.md` to run benchmarks.""")
+        To run this benchmark, first follow the setup steps in `{submission_root}/README.md`. Then to generate the TensorRT
+        engines and run the harness, first read the **Using Multiple MIG slices** section in `{submission_root}/README.md`.
+        Then follow the instructions in `{submission_root}/documentation/heterogeneous_mig.md` to run benchmarks.""".format(
+            submission_root=submission_root))
 
     with open(readme_path, 'w') as f:
         f.write(readme_str)
 
 
 def generate_calibration_process(system_name, calibration_process_path, short_benchmark_name, scenario):
+    submission_root = _submission_root()
     if short_benchmark_name == "rgat":
         calibration_process_str = "RGAT is not calibrated."
     elif "Triton_CPU" in system_name:
         calibration_process_str = textwrap.dedent("""\
-        To calibrate this benchmark, please follow the steps in `closed/NVIDIA/calibration_triton_cpu/OpenVINO/{benchmark}/README.md`.""".format(
+        To calibrate this benchmark, please follow the steps in `{submission_root}/calibration_triton_cpu/OpenVINO/{benchmark}/README.md`.""".format(
+            submission_root=submission_root,
             benchmark=short_benchmark_name))
     else:
         calibration_process_str = textwrap.dedent("""\
-        To calibrate this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`.
+        To calibrate this benchmark, first follow the setup steps in `{submission_root}/README.md`.
 
         ```
         make calibrate RUN_ARGS="--benchmarks={benchmark} --scenarios={scenario}"
         ```
 
-        For more details, please refer to `closed/NVIDIA/README.md`.""".format(
+        For more details, please refer to `{submission_root}/README.md`.""".format(
+            submission_root=submission_root,
             benchmark=short_benchmark_name,
             scenario=scenario.valstr))
     with open(calibration_process_path, 'w') as f:
@@ -291,6 +303,7 @@ def _generate_measurement_data(system_name, output_path, short_benchmark_name, i
 
 
 def generate_powersetting_adoc(powersetting_path):
+    submission_root = _submission_root()
     powersetting_str = textwrap.dedent("""\
     ## An example of an unstructured document for Power management settings to reproduce Perf, Power results
 
@@ -305,8 +318,8 @@ def generate_powersetting_adoc(powersetting_path):
     # Power Management Settings  (command line or other)
 
     Run the scripts described in our code. See the **How to collect power measurements while running the harness**
-    section of the README.md located in closed/NVIDIA.
-    """)
+    section of the README.md located in {submission_root}.
+    """.format(submission_root=submission_root))
     with open(powersetting_path, 'w') as f:
         f.write(powersetting_str)
 

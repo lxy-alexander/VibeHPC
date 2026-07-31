@@ -1,0 +1,82 @@
+= Bandwidth Documentation
+:toc:
+
+This document is the bandwidth evidence template for this submission tree. Fill
+it with the submitted system's actual network topology and measured benchmark
+throughput before final review. Do not copy bandwidth numbers from another
+system unless the hardware and network topology are identical and documented in
+the submitted system JSON.
+
+== Required proof
+
+For each submitted `system_desc_id`, document:
+
+* network adapters, link speed, and topology
+* whether traffic uses host memory, GPUDirect RDMA, or another approved path
+* ingress bandwidth available to the SUT
+* egress bandwidth available from the SUT when the benchmark has large outputs
+* the largest measured throughput for each submitted benchmark and scenario
+
+The proof should show:
+
+----
+required_bandwidth_bytes_per_sec <= available_bandwidth_bytes_per_sec
+----
+
+== Throughput formulas
+
+[cols="1,2,2",options="header"]
+|===
+| Benchmark
+| Ingress requirement
+| Egress requirement
+
+| `llama3.1-8b`
+| `throughput * max_input_tokens * token_id_bytes`
+| Not required unless output transport is part of the submitted data path.
+
+| `llama2-70b`
+| `throughput * max_input_tokens * token_id_bytes`
+| Not required unless output transport is part of the submitted data path.
+
+| `llama3.1-405b`
+| `throughput * max_input_tokens * token_id_bytes`
+| Not required unless output transport is part of the submitted data path.
+
+| `deepseek-r1`
+| `throughput * max_input_tokens * token_id_bytes`
+| `throughput * max_output_tokens * token_id_bytes`
+
+| `gpt-oss-120b`
+| `throughput * max_input_tokens * token_id_bytes`
+| `throughput * max_output_tokens * token_id_bytes`
+
+| `mixtral-8x7b`
+| `throughput * max_input_tokens * token_id_bytes`
+| Not required unless output transport is part of the submitted data path.
+
+| `stable-diffusion-xl`
+| `throughput * prompt_bytes_per_sample`
+| `throughput * output_image_bytes_per_sample` if generated images are exported
+through the measured output path.
+
+| `wan22-a14b`
+| `throughput * prompt_bytes_per_sample`
+| `throughput * frames * height * width * channels * bytes_per_channel`
+
+| `whisper`
+| `throughput * audio_seconds * sample_rate * bytes_per_sample`
+| Not required unless transcript transport is material to the submitted path.
+
+| `rgat`
+| Document as negligible or calculate from graph input movement if the benchmark
+configuration transports graph data over the measured network path.
+| Not required unless output transport is material to the submitted path.
+|===
+
+== Final check
+
+The final submission must include completed bandwidth evidence for every
+submitted system and benchmark. Each value must match the submitted
+`systems/<system_desc_id>.json`, `user.conf`, and `mlperf_log_summary.txt`
+files. Do not submit placeholder bandwidth values.

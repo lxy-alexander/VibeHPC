@@ -21,7 +21,7 @@ The submission export does not include the `3rdparty/` directory. You must clone
 repositories before building or running any benchmarks:
 
 ```bash
-cd closed/NVIDIA
+cd closed/<SUBMITTER>
 mkdir -p 3rdparty
 git clone --depth 1 https://github.com/NVIDIA/TensorRT-LLM.git 3rdparty/trtllm
 git clone --depth 1 https://github.com/mlcommons/inference.git 3rdparty/mlc-inference
@@ -58,7 +58,7 @@ docker run --rm -it \
       nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86
 
 
-# Set RUN_ARGS. Check documentation/commands.md for all options
+# Set RUN_ARGS. See this README and benchmark-specific READMEs for options.
 export RUN_ARGS="--benchmarks=llama2-70b --scenarios=Offline --core_type=trtllm_endpoint"
 
 # Launch the TRTLLM servers. 
@@ -73,7 +73,7 @@ make run_harness SYSTEM_NAME=B200-SXM-180GBx8
 * Please refer to available [container images on our NGC page](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/mlperf/containers/mlperf-inference/tags) for the containers and use the appropriate container
   * for example, use `nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_x86` to run LLM workloads on x86 machines
 * Please note that, depending on the docker daemon settings, the container may not have write access to create benchmark logs.
-  * To workaround, please run `mkdir -p $(pwd)/build/logs && chmod -R 777 $(pwd)/build` from `closed/NVIDIA`, before `docker run ...` step.
+  * To workaround, please run `mkdir -p $(pwd)/build/logs && chmod -R 777 $(pwd)/build` from `closed/<SUBMITTER>`, before `docker run ...` step.
 * Add `--accuracy_target=.999` to `RUN_ARGS` to run with high accuracy target (99.9%).
 * Add `--test_mode=AccuracyOnly` to `RUN_ARGS` to run accuracy tests.
 
@@ -83,7 +83,7 @@ make run_harness SYSTEM_NAME=B200-SXM-180GBx8
 
 NVIDIA submits with multiple systems, each of which are in either the datacenter category, edge category, or both. In general, multi-GPU systems are submitted in datacenter, and single-GPU systems are submitted in edge.
 
-Our submission implements several inference harnesses stored under closed/NVIDIA/code/ops/harness.py:
+Our submission implements several inference harnesses stored under `closed/<SUBMITTER>/code/ops/harness.py`:
 
 - LLM harness (Python) - For DeepSeek-R1, GPT-OSS-120B, and all Llama models
 - WAN-2.2-T2V-A14B harness (Text-to-Video)
@@ -92,7 +92,7 @@ Our submission implements several inference harnesses stored under closed/NVIDIA
 - RGAT harness
 - DLRMv3 harness (Recommendation)
 
-Benchmarks are stored in `closed/NVIDIA/code`. **Each benchmark contains a `README.md` with detailed setup, data preparation, and execution instructions.** Please refer to the benchmark-specific README for accurate reproduction steps.
+Benchmarks are stored in `closed/<SUBMITTER>/code`. **Each benchmark contains a `README.md` with detailed setup, data preparation, and execution instructions.** Please refer to the benchmark-specific README for accurate reproduction steps.
 
 ### Use a non-root user
 
@@ -172,7 +172,7 @@ $ mkdir $MLPERF_SCRATCH_PATH/data $MLPERF_SCRATCH_PATH/models $MLPERF_SCRATCH_PA
 ```
 After you have done so, you will need to download the models and datasets, and run the preprocessing scripts on the datasets. **If you are submitting MLPerf Inference with a low-power machine, such as a mobile platform, it is recommended to do these steps on a desktop or server environment with better CPU and memory capacity.**
 
-Enter the container by entering the `closed/NVIDIA` directory and running:
+Enter the container by entering the `closed/<SUBMITTER>` directory and running:
 
 ```
 $ make prebuild BENCHMARK=<benchmark> # Builds and launches a docker container
@@ -217,7 +217,7 @@ From v2.0 onwards, this step is now automated by a new script located in `script
 
 ## Running your first benchmark
 
-**First, enter closed/NVIDIA**. From now on, all of the commands detailed in this guide should be executed from this directory. This directory contains our submission code for the [MLPerf Inference Closed Division](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc#61-closed-division). NVIDIA may also submit under the [MLPerf Inference Open Division](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc#63-open-division) as well, and many of the commands in the Open Division are the same, but there are many nuances specific to the "open" variants of certain benchmarks.
+**First, enter `closed/<SUBMITTER>`**. From now on, all of the commands detailed in this guide should be executed from this directory. This directory contains the submission code for the [MLPerf Inference Closed Division](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc#61-closed-division).
 
 ***IMPORTANT**:* **Do not run any commands as root (Do not use sudo) unless written in NVIDIA-provided scripts.** Running under root messes up a lot of permissions, and has caused many headaches in the past. If for some reason you missed the part in the beginning of the guide that warned to not use root, you may run into one of the following problems:
 
@@ -255,7 +255,7 @@ $ make prebuild BENCHMARK=wan22-a14b                    # Build WAN-2.2 containe
 ***Important notes:***
 
 - **If you are an NVIDIA partner engineer with access to NVIDIA's partner private NGC registry, please use `$ PARTNER_DROP=1 make prebuild BENCHMARK=<benchmark_name>`**
-- The docker container does not copy the files, and instead **mounts** the working directory (closed/NVIDIA) under /work in the container. This means you can edit files outside the container, and the changes will be reflected inside as well.
+- The docker container does not copy the files, and instead **mounts** the working directory (`closed/<SUBMITTER>`) under `/work` in the container. This means you can edit files outside the container, and the changes will be reflected inside as well.
 - In addition to mounting the working directory, the scratch spaces are also mounted into the container. Likewise, this means if you add files to the scratch spaces outside the container, it will be reflected inside the container and vice versa.
 - If you want to mount additional directories/spaces in the container, use `$ DOCKER_ARGS="-v <from>:<to> -v <from>:<to>" make prebuild BENCHMARK=<benchmark_name>`
 - If you want to expose only a certain number of GPUs in the container, use `$ NVIDIA_VISIBLE_DEVICES=0,2,4... make prebuild BENCHMARK=<benchmark_name>`
@@ -287,7 +287,7 @@ For example: `nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1
 _If, for some reason, you require to build a separate TRTLLM version from src, follow the steps below._
 
 ```
-$ cd $(repo_root)/closed/NVIDIA
+$ cd $(repo_root)/closed/<SUBMITTER>
 $ git submodule deinit 3rdparty/trtllm && rm -rf 3rdparty/trtllm
 $ git clone https://github.com/NVIDIA/TensorRT-LLM/ -b <optional_branch_specified> 3rdparty/trtllm
 $ make prebuild_llm PREBUILD_TYPE=docker # PREBUILD_TYPE=sqsh may be broken
@@ -343,7 +343,7 @@ To run Llama2-70b, and Llama3.1-405b under the Offline and Server scenarios:
 ```
 $ make run_harness RUN_ARGS="--benchmarks=llama2-70b,llama3.1-405b --scenarios=Offline,Server"
 ```
-**If you run into issues, invalid results, or would like to improve your performance,** **read** `documentation/performance_tuning_guide.md`.
+**If you run into issues, invalid results, or would like to improve your performance,** review the benchmark-specific README and the generated LoadGen logs under `build/logs`.
 
 ### Which configs are used for my experiments?
 
@@ -415,12 +415,12 @@ Starting in MLPerf Inference v1.0, the 'power measurement' category introduced a
 
 NVIDIA's power category submission is called 'MaxQ'. To run the harness with power measurements, follow the steps below:
 
-1. Set the machine to the desired power mode. The Makefile in closed/NVIDIA contains a target called `power_set_maxq_state` that describes the power settings we use for our MaxQ submissions. Run this make target before proceeding.
+1. Set the machine to the desired power mode. The Makefile in `closed/<SUBMITTER>` contains a target called `power_set_maxq_state` that describes the power settings used for MaxQ submissions. Run this make target before proceeding.
 2. Set up a Linux power director machine with the following requirements.
     1. PTDaemon `ptd-linux-x86` is installed in `/usr/bin`. The PTDaemon executable file is located in a private repo: [https://github.com/mlcommons/power](https://github.com/mlcommons/power) and submitters must join the Power WG and sign the PTD EULA license agreement to get it.
     2. The MLCommons [power-dev repo](https://github.com/mlcommons/power-dev) is cloned in `~/mlperf-power/power-dev` and is on the correct branch for the MLPerf Inference version (i.e. `r1.0` for MLPerf Inference v1.0)
     3. You have created a directory at `~/power_logs`
-    4. There exists an administrator user `lab` with password `labuser-mlpinf`. If your administrator account has different login information, set `POWER_SERVER_USERNAME` and `POWER_SERVER_PASSWORD` in `closed/NVIDIA/Makefile.power` to the correct credentials.
+    4. There exists an administrator user `lab` with password `labuser-mlpinf`. If your administrator account has different login information, set `POWER_SERVER_USERNAME` and `POWER_SERVER_PASSWORD` in `closed/<SUBMITTER>/Makefile.power` to the correct credentials.
     5. OpenSSH server is installed and enabled on the machine, listening on port 22.
     6. Set the IP of the power system in `power/power_server_ips.py`
 3. Set the power meter configuration in `power/server-$HOSTNAME.cfg`. Refer to NVIDIA sample configuration (`server-template-linux.cfg`) files as examples, and note that you need to bump up the listen port and network port so different systems don't collide with each other.
@@ -441,21 +441,21 @@ For legacy benchmarks using implicit quantization (e.g. RetinaNet, 3d-unet etc.)
 ```
 $ make calibrate RUN_ARGS="--benchmarks=[benchmark]"
 ```
-See documentation/calibration.md for an explanation on how calibration is used for NVIDIA's submission.
+See `documentation/calibration.adoc` for the submission calibration and quantization summary.
 
 ### Update the results directory for submission
 
-Refer to documentation/submission_guide.md.
+Use the `stage_results`, `stage_compliance`, `truncate_results`, `check_submission`, and `pack_submission` targets in `Makefile.submission`.
 
 ### Run compliance tests and update the compliance test logs
 
-Refer to documentation/submission_guide.md.
+Use the `stage_compliance`, `check_submission`, and `pack_submission` targets in `Makefile.submission`.
 
 ### Preparing for submission
 
 MLPerf Inference policies as of v1.0 include an option to allow submitters to submit an encrypted tarball of their submission repository, and share a SHA1 of the encrypted tarball and the decryption password with the MLPerf Inference results chair. This option gives submitters a more secure, private submission process. NVIDIA and **all NVIDIA partners** must use this new submission process to ensure fairness among submitters.
 
-For instructions on how to encrypt your submission, see the 'Encrypting your project for submission' section of documentation/submission_guide.md.
+For packaging, use `make pack_submission` after exporting and checking the submission. Follow the current MLCommons submission portal instructions for encryption, upload, verifier execution, and final confirmation.
 
 **IMPORTANT**: In v2.0, the MLPerf Inference committee is working to put together a web-based submission page so that you can submit your results from the website. This webpage will have an option to use an **encrypted** submission. **ALL NVIDIA Submission partners** are expected to use this encrypted submission to **avoid leaking results** to competitors. As of **1/24/2022**, this webpage has not yet been finalized, so the instructions for actually submitting your results tarball are **outdated and incorrect**. When the page and the URL have been finalized, NVIDIA will notify partners of the correct submission instructions.
 
@@ -467,7 +467,7 @@ Please refer to the README.md in each benchmark directory for auditing instructi
 
 ** Internal MLPerf dataset only need to be setup once from admin. **
 
-Each benchmark contains a `README.md` (located at `closed/NVIDIA/code/[benchmark name]/tensorrt/README.md`) that explains how to download and set up the dataset and model files for that benchmark manually. **We recommend that you read the README.md files for benchmarks that you plan on running or submitting.**
+Each benchmark contains a `README.md` (located under `closed/<SUBMITTER>/code/[benchmark name]/`) that explains how to download and set up the dataset and model files for that benchmark manually. **We recommend that you read the README.md files for benchmarks that you plan on running or submitting.**
 
 **Note that you do not need to download the datasets or models for benchmarks that you will not be running.**
 
@@ -532,11 +532,10 @@ Refer to benchmark specific READMEs and `preprocess_data.py` in each benchmark f
 
 ### Further reading
 
-More specific documentation and for debugging:
+Submission documentation:
 
-- documentation/performance_tuning_guide.md - Documentation related to tuning and benchmarks via configuration changes
-- documentation/commands.md - Documentation on commonly used Make targets and RUN_ARGS options
-- documentation/FAQ.md - An FAQ on common errors or issues that have popped up in the past
-- documentation/submission_guide.md - Documentation on officially submitting our repo to MLPerf Inference
-- documentation/calibration.md - Documentation on how we use calibration and quantization for MLPerf Inference
-
+- `documentation/README.md` - Minimal documentation index for the submitted tree
+- `documentation/calibration.adoc` - Calibration and quantization summary
+- `documentation/bandwidth.adoc` - Bandwidth proof methodology
+- `documentation/licenses_and_attributions.adoc` - License and attribution notes
+- `code/<benchmark>/.../README.md` - Benchmark-specific setup and run details

@@ -1,0 +1,90 @@
+= Calibration and Quantization Notes
+:toc:
+
+This document records the calibration and quantization methods used by this
+NVIDIA MLPerf Inference-derived submission tree. The authoritative per-run
+metadata is generated into `results/<system>/<benchmark>/<scenario>/` as
+`measurements.json` and `calibration_process.adoc`.
+
+== Common process
+
+The TensorRT and TensorRT-LLM implementations use post-training quantization or
+pre-quantized checkpoints depending on benchmark and accelerator support.
+Calibration data must be representative of the benchmark input distribution and
+must be prepared using the benchmark-specific scripts in `code/<benchmark>/`.
+
+The generated `measurements.json` records:
+
+* input data types
+* whether retraining was used
+* starting weights
+* weight data types
+* weight transformations
+
+== Benchmark notes
+
+[cols="1,2,2",options="header"]
+|===
+| Benchmark
+| Quantization or calibration path
+| Source of detailed commands
+
+| `deepseek-r1`
+| Uses the NVIDIA FP4/NVFP4 checkpoint path when configured for supported
+accelerators. The code also contains TensorRT-LLM/ModelOpt checkpoint preparation
+using the DeepSeek-R1 calibration dataset.
+| `code/deepseek-r1/tensorrt/README.md`
+
+| `gpt-oss-120b`
+| Uses MLCommons-hosted model files with TensorRT-LLM checkpoint preparation.
+The exact precision used for a run is captured in generated `measurements.json`.
+| `code/gpt-oss-120b/tensorrt/README.md`
+
+| `llama2-70b`
+| Uses either original Hugging Face weights followed by quantization or an
+already converted TensorRT-LLM NVFP4 checkpoint. KV cache precision is recorded
+by the generated engine metadata and measurement files.
+| `code/llama2-70b/tensorrt/README.md`
+
+| `llama3.1-8b`
+| Uses Meta Llama 3.1 8B Instruct weights and TensorRT-LLM/ModelOpt
+quantization. The repository includes calibration dataset wiring for the
+MLPerf Llama 3.1 8B calibration set.
+| `code/llama3.1-8b/tensorrt/README.md`
+
+| `mixtral-8x7b`
+| Uses ModelOpt quantization. FP8 checkpoint preparation may be run during
+engine generation where applicable; B200 FP4 submissions use the provided
+quantized checkpoint artifact described by the benchmark README.
+| `code/mixtral-8x7b/tensorrt/README.md` and
+`code/mixtral-8x7b/modelopt/README.md`
+
+| `stable-diffusion-xl`
+| Starts from MLCommons-provided FP16 PyTorch weights, converts to ONNX/TensorRT
+artifacts, and uses the benchmark calibration flow for quantized components.
+| `code/stable-diffusion-xl/tensorrt/README.md`
+
+| `wan22-a14b`
+| Uses the Wan2.2 T2V A14B Hugging Face model path with benchmark-specific
+TensorRT preparation. Quantized component details must match the generated
+`measurements.json`.
+| `code/wan22-a14b/tensorrt/README.md`
+
+| `whisper`
+| Uses Whisper Large v3 weights and TensorRT-LLM conversion. Weight-only
+quantization options are implemented in the benchmark conversion code, and the
+submitted precision is recorded in `measurements.json`.
+| `code/whisper/tensorrt/README.md`
+
+| `rgat`
+| RGAT model calibration is not required in the same TensorRT calibration flow.
+Preprocessing may convert graph features into the precision expected by the
+runtime.
+| `code/rgat/pytorch/README.md`
+|===
+
+== Submission rule
+
+Before packaging, regenerate the scenario-level measurement files through the
+normal NVIDIA flow and run the official MLPerf Inference submission checker for
+the exact submission version.

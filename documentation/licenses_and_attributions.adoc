@@ -1,0 +1,22 @@
+= Licenses and Attributions
+
+This submission is derived from NVIDIA MLPerf Inference code and preserves
+upstream copyright notices in source files.
+
+VibeHPC modifications are provided by VibeHPC. Upstream NVIDIA and third-party
+notices are preserved.
+
+Third-party attribution notices are kept in `attributions.txt` at the repository
+root. That file includes the NVIDIA Apache License 2.0 notice and notices for
+PyTorch, TensorFlow, Caffe, and Caffe2-derived components.
+
+Before final packaging:
+
+* keep `attributions.txt` in the submitted tree
+* keep copyright headers in source files
+* keep model and dataset license files downloaded with model artifacts
+* do not submit gated model or dataset artifacts unless the submitter has the
+  required rights to redistribute or the rules explicitly require submission
+* include any additional third-party notices introduced by local changes
+
+include::../attributions.txt[]
