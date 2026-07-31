@@ -1,0 +1,25 @@
+# Minimal disaggregated serving configuration
+# Nodelist always fetched from $SLURM_JOBID
+
+benchmark: deepseek-r1
+scenario: Interactive
+container_image: /lustre/fsw/coreai_mlperf_inference/mlperf_inference_images/mlpinf+mlperf-inference+dynamo-v0.8.0-tensorrt_llm_release-feat-1.2-mlpinf-5ad8cf6_sms_90_100_103_120-mlperf_llm_aarch64+latest.sqsh
+
+# Cluster template (defines each cluster instance)
+disagg_cluster:
+  num_prefill_workers: 1
+  num_decode_workers: 1
+  frontend_system: GB200-NVL72_GB200-186GB_aarch64x4
+
+# Worker specifications
+prefill:
+  system: GB200-NVL72_GB200-186GB_aarch64x4
+  gpus_per_worker: 4
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo/trtllm/deepseek-r1/prefill_config.yaml
+
+decode:
+  system: GB200-NVL72_GB200-186GB_aarch64x16
+  gpus_per_worker: 16
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo/trtllm/deepseek-r1/decode_config.yaml

@@ -1,0 +1,108 @@
+================================================================================
+NODE ALLOCATION SIMULATION
+================================================================================
+Configuration:
+- CTX workers: 28 (1 GPU each)
+- GEN workers: 44 (1 GPU each)
+- Coordinators: 9 instances
+- GPUs per node: 4
+- Total nodes: 18
+
+Requirements:
+1. Each coordinator on a separate node
+2. Coordinators on CTX nodes first, then GEN nodes
+3. Harness on a different node than coordinators
+
+================================================================================
+CALCULATION:
+================================================================================
+
+CTX Nodes Needed: 28 workers ÷ 4 GPUs/node = 7 nodes
+GEN Nodes Needed: 44 workers ÷ 4 GPUs/node = 11 nodes
+Total Worker Nodes: 7 + 11 = 18 nodes ✓
+
+Coordinator Placement (9 coordinators):
+- First 7 coordinators → CTX nodes (nodes 0-6)
+- Next 2 coordinators → GEN nodes (nodes 7-8)
+- Total coordinator nodes: 9 nodes
+
+Remaining GEN nodes without coordinators: nodes 9-17 (9 nodes)
+Harness placement: Node 9 (first GEN node without coordinator)
+
+================================================================================
+NODE ALLOCATION TABLE:
+================================================================================
+
+Node | Type      | Workers           | Coordinator | Harness | Ports
+-----|-----------|-------------------|-------------|---------|------------------
+  0  | GEN       | GEN_0,1,2,3       |             |         | Workers: 8336-8339
+  1  | GEN       | GEN_4,5,6,7       |             |         | Workers: 8340-8343
+  2  | GEN       | GEN_8,9,10,11     |             |         | Workers: 8344-8347
+  3  | GEN       | GEN_12,13,14,15   |             |         | Workers: 8348-8351
+  4  | GEN       | GEN_16,17,18,19   |             |         | Workers: 8352-8355
+  5  | GEN       | GEN_20,21,22,23   |             |         | Workers: 8356-8359
+  6  | GEN       | GEN_24,25,26,27   |             |         | Workers: 8360-8363
+  7  | GEN       | GEN_28,29,30,31   |             |         | Workers: 8364-8367
+  8  | GEN       | GEN_32,33,34,35   |             | HARNESS | Workers: 8368-8371
+  9  | GEN       | GEN_36,37,38,39   | COORD_7     |         | Workers: 8372-8375, Coord: 8307
+ 10  | GEN       | GEN_40,41,42,43   | COORD_8     |         | Workers: 8376-8379, Coord: 8308
+ 11  | CTX       | CTX_0,1,2,3       | COORD_0     |         | Workers: 8380-8383, Coord: 8300
+ 12  | CTX       | CTX_4,5,6,7       | COORD_1     |         | Workers: 8384-8387, Coord: 8301
+ 13  | CTX       | CTX_8,9,10,11     | COORD_2     |         | Workers: 8388-8391, Coord: 8302
+ 14  | CTX       | CTX_12,13,14,15   | COORD_3     |         | Workers: 8392-8395, Coord: 8303
+ 15  | CTX       | CTX_16,17,18,19   | COORD_4     |         | Workers: 8396-8399, Coord: 8304
+ 16  | CTX       | CTX_20,21,22,23   | COORD_5     |         | Workers: 8400-8403, Coord: 8305
+ 17  | CTX       | CTX_24,25,26,27   | COORD_6     |         | Workers: 8404-8407, Coord: 8306
+
+================================================================================
+PORT ALLOCATION SUMMARY:
+================================================================================
+
+Coordinators:      8300-8308 (9 coordinators)
+Workers (GEN):     8336-8379 (44 workers)
+Workers (CTX):     8380-8407 (28 workers)
+
+✓ NO PORT CONFLICTS!
+✓ All coordinators on separate nodes
+✓ Coordinators prioritize CTX nodes (7/7) then GEN nodes (2/11)
+✓ Harness on node 9 (separate from all coordinators)
+
+================================================================================
+COORDINATOR → WORKER MAPPING:
+================================================================================
+
+Each coordinator serves ALL workers but is co-located with workers for efficiency:
+
+COORD_0 (node 0): Co-located with CTX_0,1,2,3
+COORD_1 (node 1): Co-located with CTX_4,5,6,7
+COORD_2 (node 2): Co-located with CTX_8,9,10,11
+COORD_3 (node 3): Co-located with CTX_12,13,14,15
+COORD_4 (node 4): Co-located with CTX_16,17,18,19
+COORD_5 (node 5): Co-located with CTX_20,21,22,23
+COORD_6 (node 6): Co-located with CTX_24,25,26,27
+COORD_7 (node 7): Co-located with GEN_0,1,2,3
+COORD_8 (node 8): Co-located with GEN_4,5,6,7
+
+HARNESS (node 9): Separate, connects to all 9 coordinators
+
+================================================================================
+SLURM NODELIST MAPPING:
+================================================================================
+
+Assuming SLURM_NODELIST="node[0000-0017]":
+
+all_nodes[0]  = node0000  → CTX workers + COORD_0
+all_nodes[1]  = node0001  → CTX workers + COORD_1
+all_nodes[2]  = node0002  → CTX workers + COORD_2
+all_nodes[3]  = node0003  → CTX workers + COORD_3
+all_nodes[4]  = node0004  → CTX workers + COORD_4
+all_nodes[5]  = node0005  → CTX workers + COORD_5
+all_nodes[6]  = node0006  → CTX workers + COORD_6
+all_nodes[7]  = node0007  → GEN workers + COORD_7
+all_nodes[8]  = node0008  → GEN workers + COORD_8
+all_nodes[9]  = node0009  → GEN workers + HARNESS
+all_nodes[10] = node0010  → GEN workers only
+...
+all_nodes[17] = node0017  → GEN workers only
+
+================================================================================

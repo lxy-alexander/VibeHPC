@@ -1,0 +1,65 @@
+# =============================================================================
+# requirements.wan22.txt - Dependencies for Wan-2.2 A14B with VisionFly
+#   TensorRT-LLM is pre-installed in the base docker image.
+#       These are additional dependencies for VisionFly.
+# =============================================================================
+
+diffusers==0.35.2
+accelerate==1.12.0
+safetensors==0.7.0
+peft==0.18.0
+
+einops==0.8.1
+imageio==2.37.2
+imageio-ffmpeg==0.6.0
+opencv-python-headless==4.12.0.88
+pillow==12.0.0
+
+sentencepiece==0.2.1
+ftfy==6.3.1
+regex==2025.11.3
+
+huggingface_hub==0.36.0
+
+scipy==1.16.2
+
+packaging==25.0
+termcolor==3.2.0
+ninja==1.13.0
+filelock==3.20.1
+tqdm==4.67.1
+pyyaml==6.0.3
+psutil==7.2.0
+requests==2.32.5
+protobuf==6.33.0
+
+apache-tvm-ffi==0.1.6
+llguidance==1.4.0
+starlette==0.50.0
+prometheus_fastapi_instrumentator==7.1.0
+click_option_group==0.5.9
+nvidia-cuda-nvrtc==13.1.80
+cuda-python==13.1.1
+flashinfer-python==0.5.3
+sageattention==1.0.6
+nvidia-cutlass-dsl==4.2.1
+xgrammar==0.1.25
+openai-harmony==0.0.4
+transformers==4.56.0
+blobfile==3.1.0
+triton==3.5.0
+colored==2.3.1
+etcd3==0.12.0
+omegaconf==2.3.0
+openai==2.15.0
+optimum==2.1.0
+
+
+nvidia-modelopt==0.40.0
+
+
+
+backoff==2.2.1
+nvtx==0.2.14
+
+

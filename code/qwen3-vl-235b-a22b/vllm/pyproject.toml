@@ -1,0 +1,72 @@
+[project]
+name = "mlperf-inf-mm-q3vl-nv"
+description = "The NVIDIA-optimized implementation for the Qwen3-VL (Q3VL) benchmark in MLPerf Inference."
+readme = "README.md"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
+]
+requires-python = ">=3.12"
+version = "6.0.0"
+dependencies = [
+  "loguru",
+  "mlperf-inf-mm-q3vl",
+  "mpi4py",
+  "pydantic",
+  "pydantic-typer @ git+https://github.com/CentML/pydantic-typer.git@wangshangsam/preserve-full-annotated-type",
+  "typer",
+  "wandb",
+]
+
+[project.optional-dependencies]
+dev = ["black", "ruff", "mypy", "shellcheck-py", "pytest"]
+
+[project.entry-points."mlperf_inf_mm_q3vl.benchmark_plugins"]
+nv = "mlperf_inf_mm_q3vl_nv.cli:register_nv"
+
+[project.urls]
+Homepage = "https://github.com/mlcommons/inference_results_v6.0/closed/NVIDIA/code/qwen3-vl-235b-a22b/vllm"
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"mlperf_inf_mm_q3vl_nv" = ["py.typed"]
+
+[tool.ruff]
+lint.select = ["ALL"]
+lint.ignore = [
+  "ANN002",  # Missing type annotation for `*args`"
+  "ANN003",  # Missing type annotation for `**kwargs`
+]
+
+[tool.ruff.lint.pylint]
+max-args = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+[tool.mypy]
+check_untyped_defs = true
+plugins = ['pydantic.mypy']
+
+[[tool.mypy.overrides]]
+module = "pydantic_typer"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mlperf_loadgen"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "datasets"
+ignore_missing_imports = true

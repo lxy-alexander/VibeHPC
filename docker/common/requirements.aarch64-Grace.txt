@@ -1,0 +1,5 @@
+typeguard==4.4.1
+onnx_graphsurgeon==0.5.6
+# building dlrmv2 dependency from source
+setuptools_git_versioning
+scikit-build

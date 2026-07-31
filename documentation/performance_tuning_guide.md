@@ -1,0 +1,529 @@
+# NVIDIA MLPerf Inference System Under Test (SUT) Performance Tuning Guide
+This guide is meant to provide details on how to fix issues involving bad performance, "invalid results", or potential hard crashes after following the "Prepping our repo for your machine" section of the MLPerf Inference Tutorial (this is the same as the closed/NVIDIA/README.md stored in the repo).
+
+After you add your system description to system_list.py and add configs for your desired benchmarks, it is possible there might be issues causing you to not achieve the best performance possible. Before diagnosing any possible errors, **please go through each of these sections in order, as some pertain to adhering to MLPerf Inference rules**.
+
+**IMPORTANT:** Make sure your performance tuning changes (i.e. any change made following steps on this document) are done in `configs/[BENCHMARK]/[SCENARIO]/__init__.py` files. Note that all files in the `measurements/` directory are automatically generated from the files in the `configs/` directory at runtime, so any manual changes made in `measurements/` will not take effect.
+
+### Identifying performance issues via nvidia-smi metrics
+nvidia-smi provides the user, in real time, a list of key metrics that that reflects different aspects of GPU performance. For a comprehensive list of metrics, se `nvidia-smi --help-query-gpu`.
+
+We provide a set of scripts to collect these metrics during benchmark runs. These scripts are at closed/NVIDIA/scripts/perf_monitor:
+- `run_nvidia_smi_mon.py`: Collects specified metrics during a command run and saves them to an output CSV file. See `python3 run_nvidia_smi_mon.py --help` for usage.
+- `plot_nvidia_smi_mon.py`: Takes as input the CSV file above and outputs a plot. This can be static png files or interactive HTML plots. See `python3 plot_nvidia_smi_mon.py --help` for usage.
+
+For convenience, we also provide a make target, `make perf_profile` to generate static plots easily to identify performance issues or verify stability of performance.
+The following arguments are required:
+- `IMG_FILE`: The path to the output PNG file.
+- `CSV_FILE`: The path to the nvidia-smi metrics CSV file.
+- Either `COMMAND` or (`RUN_ARGS` and `ACTION`): To either run an arbitrary command, or to run an ACTION (which is a make target like `run_harness_power` or `run_harness`) with `RUN_ARGS` (specifying the scenarios and benchmarks)
+Examples:
+```
+$ make perf_profile ACTION=run_harness RUN_ARGS="--benchmarks=whisper --scenarios=Offline" CSV_FILE=out2.csv IMG_FILE=plot-whisper.png
+$ make perf_profile COMMAND="bash_command_here" CSV_FILE=out3.csv IMG_FILE=plot.png
+```
+
+### LLM Performance Tuning
+
+LLM benchmarks in MLPerf Inference v6.0 include DeepSeek-R1, GPT-OSS-120B, Llama2-70B, Llama3.1-8B, and Llama3.1-405B. These benchmarks use TensorRT-LLM (TRTLLM) for inference.
+
+#### Batching Strategies
+
+There are 2 batching strategies:
+- **Static batching**: Every request of a batch must complete before the next batch can be processed. Since the output sizes of LLM requests may be skewed, this suffers from low utilization, harming throughput.
+- **In-flight batching (IFB)**: The batch of requests is dynamically adjusted, adding new inputs and removing completed ones in real-time, rather than using a fixed batch size. Keeps utilization high and is good for throughput.
+
+We use IFB for LLM workloads on Datacenter systems.
+
+#### Config File Structure
+
+LLM configs are located in `configs/<SYSTEM_NAME>/<SCENARIO>/<benchmark>.py`. Key sections:
+
+```python
+base = {
+    # Build-time flags (used when building TRTLLM engine)
+    llm_fields.trtllm_build_flags: {
+        'max_beam_width': 1,
+        'kv_cache_type': 'paged',
+        'max_num_tokens': 12000,         # Maximum tokens per iteration
+        'max_input_len': 2540,           # Maximum input sequence length
+        'max_seq_len': 2668,             # Maximum total sequence length (input + output)
+        'use_fp8_context_fmha': 'enable',
+        'use_paged_context_fmha': 'enable',
+    },
+
+    # Runtime flags (used when running inference)
+    llm_fields.trtllm_runtime_flags: {
+        'use_inflight_batching': True,
+        'max_num_tokens': 12000,
+        'batch_scheduler_policy': 'max_util',
+        'kvcache_free_gpu_mem_frac': 0.9,
+        'enable_chunked_context': True,
+    },
+
+    # Parallelism settings
+    llm_fields.tensor_parallelism: 1,
+    llm_fields.pipeline_parallelism: 1,
+    llm_fields.moe_expert_parallelism: 8,  # For MoE models like DeepSeek-R1
+
+    # Performance targets
+    model_fields.gpu_batch_size: {'llama3_1-8b': 6000},
+    loadgen_fields.offline_expected_qps: 1100,
+}
+```
+
+#### Key TRTLLM Parameters
+
+##### `max_num_tokens`
+
+This is the maximum number of tokens processed in every iteration. To tune:
+1. Use NVIDIA's published configs for the same GPU as a starting point
+2. If no published config exists, set a default value (e.g., 2048-4096) and run with logging: `--verbose_glog=1`
+3. Monitor "free KV cache blocks" in the iteration logs
+4. For **Offline scenario**: Tune batch size to minimize free KV cache blocks without hitting 0
+5. Rule of thumb: `max_num_tokens = (1 + isl/osl) * max_batch_size`
+
+##### `kvcache_free_gpu_mem_frac`
+
+Controls GPU memory reserved for KV cache (value between 0 and 1):
+- Free GPU memory = (Total GPU memory) - (Model params size)
+- For isolated benchmark runs, use high values (>0.9)
+- For B200/B300 with larger memory: up to 0.95
+- **If you hit OOM errors**, progressively lower by 0.05 increments
+
+##### `gpu_batch_size`
+
+Maximum batch size for the model:
+- Start with NVIDIA's published value
+- If OOM occurs, reduce the batch size
+- Balance between throughput and memory usage
+
+#### Parallelism Settings
+
+For large models that don't fit on a single GPU:
+
+| Model | Recommended TP | Recommended PP | Notes |
+|-------|---------------|----------------|-------|
+| Llama3.1-8B | 1 | 1 | Fits on single GPU |
+| Llama2-70B | 1-2 | 1 | 1 for >90GB VRAM, 2 for ~80GB |
+| Llama3.1-405B | 4-8 | 1-2 | Requires multi-GPU |
+| DeepSeek-R1 | 8 | 1 | Also requires moe_expert_parallelism=8 |
+| GPT-OSS-120B | 1 | 1 | With data parallelism |
+
+**Tensor Parallelism (TP)**: Splits model by tensors. Higher communication overhead but generally lower latency.
+
+**Pipeline Parallelism (PP)**: Splits model by layers. Lower communication overhead but generally higher latency.
+
+**MoE Expert Parallelism**: For Mixture-of-Experts models like DeepSeek-R1, distributes experts across GPUs.
+
+#### Chunking Strategy
+
+When chunked context is enabled (`enable_chunked_context: True`), use `context_chunking_policy`:
+- **first_come_first_served**: Context chunks of earlier requests are processed first (default)
+- **equal_progress**: Chunks are selected uniformly across pending requests
+
+#### Running LLM Benchmarks
+
+All LLM benchmarks use `make run_llm_server` (TRTLLM serve endpoint) followed by `make run_harness`:
+
+```bash
+# Start the LLM server (in one terminal or background)
+make run_llm_server RUN_ARGS="--benchmarks=<BENCHMARK> --scenarios=<SCENARIO> --core_type=trtllm_endpoint"
+
+# Run the harness (after server is ready)
+make run_harness RUN_ARGS="--benchmarks=<BENCHMARK> --scenarios=<SCENARIO> --core_type=trtllm_endpoint"
+```
+
+This applies to: DeepSeek-R1, Llama3.1-8B, Llama2-70B, Llama3.1-405B, GPT-OSS-120B.
+
+**Note:** Whisper is the only benchmark that uses the traditional TensorRT engine workflow:
+```bash
+make generate_engines RUN_ARGS="--benchmarks=whisper --scenarios=Offline"
+make run_harness RUN_ARGS="--benchmarks=whisper --scenarios=Offline"
+```
+
+#### Multi-Node Runs (NVL72 and Slurm-managed Clusters)
+
+Workloads on multi-node systems (GB200 NVL72, GB300 NVL72, or any Slurm-managed cluster) **must** use the scaleout scripts. See `scaleout/REPRODUCE.md` for detailed commands.
+
+#### In-Flight Batching (IFB) vs Disaggregated Serving
+
+There are two serving architectures for LLM workloads:
+
+**In-Flight Batching (IFB):**
+- Dynamically manages batch composition, adding new requests and removing completed ones in real-time
+- Optimized for **high throughput** (Offline scenario)
+- Uses `run_scaleout.sh` for multi-node deployments
+- Suitable when maximizing queries per second is the priority
+
+**Disaggregated Prefill/Decode:**
+- Separates context processing (prefill) and token generation (decode) onto different GPU groups
+- Optimized for **low latency** (Server and Interactive scenarios)
+- Uses `run_scaleout_disagg.py` for multi-node deployments
+- Context servers handle the initial prompt processing
+- Generation servers handle autoregressive token generation
+- Better tail latency characteristics due to workload isolation
+
+**When to use which:**
+| Scenario | Recommended Architecture | Script |
+|----------|-------------------------|--------|
+| Offline | IFB | `run_scaleout.sh` |
+| Server | Disaggregated (for large models) or IFB | `run_scaleout_disagg.py` or `run_scaleout.sh` |
+| Interactive | Disaggregated | `run_scaleout_disagg.py` |
+
+For detailed multi-node commands and examples, see `scaleout/REPRODUCE.md`.
+
+### Using NSYS to Inspect Performance
+
+NSYS profiles are useful for gaining insight into performance optimization opportunities. Please use `make perf_profile` first to report performance issues, and capture nsys only when asked/required.
+
+For non-LLM workloads:
+```bash
+nsys profile -f true --gpu-metrics-devices=all -y 270 -d 30 -o out.nsys-rep \
+    make run_harness RUN_ARGS="--benchmarks=whisper --scenarios=Offline"
+```
+
+For LLM workloads, instead of relying on the delay `-y` and duration `-d` flags, profile a range of TRTLLM iterations:
+```bash
+TLLM_GPTM_PROFILE_START_STOP=2000-2050 nsys profile \
+    --output=out.nsys-rep \
+    --force-overwrite=true \
+    -t cuda,nvtx \
+    --gpu-metrics-devices=all \
+    -c cudaProfilerApi \
+    --capture-range-end="stop-shutdown" \
+    make run_harness RUN_ARGS="--benchmarks=llama2-70b --scenarios=Offline"
+```
+
+### Different system configurations that use the same GPU configuration
+Sometimes, it may be the case that submitters will have 2 different submission systems with the same GPU configuration, but differing hardware configurations elsewhere, such as a different CPU, memory size, etc. These are counted as separate systems, and you should have definitions for these which specify the CPUs and memory sizes, as well as different system IDs. This also means you will need separate benchmark configurations for each unique system. See the main README.md for instructions on how to add a system. If you are using the automated script, you will need to run it once on each system.
+
+### Using the 'start_from_device' and 'end_on_device' flag
+
+On some systems, it is possible that you can use the `start_from_device` and `end_on_device` flags to improve your end-to-end inference performance results. When `start_from_device` is enabled, the QSL is loaded on GPU memory, and any Host-to-Device memcpy is skipped. This behavior of this flag, however, **requires approval from the MLPerf Inference committee** and the submitter **must provide proof** that their system has a NIC directly attached to each GPU, and the data from the network can be inserted into device memory *without* going through the host (CPU). MLPerf Inference ***requires*** the following as proof:
+
+- A system architecture diagram showing direct connection between the network and accelerator, without going through the CPU.
+- Bandwidth measurements for this connection that show they are sufficient for the benchmark
+- Example of software that supports this data connection (i.e. GPUDirect).
+
+The 'minimum required bandwidth' is dependent on the benchmark and its input. You can only use `start_from_device` for benchmarks you can satisfy the minimum bandwidth requirement of. **If your system does not qualify for the requirements to use start_from_device, do not specify it in your BenchmarkConfiguration (i.e. delete the field).**
+
+Formulas for minimum required bandwidth for **start_from_device** are as follows:
+
+- start_from_device (in bytes), where tput is your throughput as 'Queries per second':
+    - ResNet50: throughput x (C x H x W) = throughput x (3 x 224 x 224) = tput x 150528
+
+For detailed bandwidth requirements for all current benchmarks, see [bandwidth_requirement.md](bandwidth_requirement.md).
+
+There is also an `end_on_device` flag introduced in v1.1 of MLPerf Inference. This flag disables the Device-to-Host memcpy that is normally done post-inference. To use this flag, MLPerf Inference ***requires*** the submitter to provide proof of sufficient bandwidth to transmit the result back to the network directly from the device. **If your system does not qualify for the requirements to use end_on_device, do not specify it in your BenchmarkConfiguration (i.e. delete the field)**.
+
+**Note that this flag is only supported / allowed on the following benchmarks (as per MLPerf Inference rules):**
+
+- 3D-UNET
+
+Formulas for minimum required bandwidth are as follows:
+
+- end_on_device (in bytes), where tput is your throughput as 'Queries per second':
+    - 3D-UNET: throughput x (outputC x D x H x W x sizeof(int8)) = throughput x (1 x averageof(43 input tensor sizes) x 1) = tput x 32944795
+        - 3D-UNET KiTS19 output shows segmentation results (labels) of each voxel, showing if it is for background (=0), Normal cell (=1), or Tumor (=2). The segmentation results are in 1 channel INT8 dtype. The size of the output tensor is the same to input tensor.
+
+**If you wish to use both start_from_device and end_on_device, you must provide the proof for bidirectional bandwidth.** Your system must be able to support the sum of the start_from_device **and** end_on_device bandwidth requirements.
+
+The benchmarking philosophy of MLPerf is to include the transmission of data between the accelerator and the most logical placement of the data as part of the timed portion of the benchmarking task. This "most logical placement of data" is most commonly the CPU DRAM, in which the data is placed by an I/O device prior to preprocessing and running the timed portion of the benchmark, and then transmitted to an I/O device after the end of the timed portion and any postprocessing. The start_from_device and end_from_device exceptions cover cases where the system topology and usage scenario allow the data to never pass through CPU memory on the way to or from the I/O device to the accelerator. NVIDIA's interpretation of the rules is thus that **if the system topology requires data to pass through CPU memory**, start_from_device and end_on_device **are not legal optimizations**.
+
+**Furthermore, in order to use start_from_device or end_on_device in a BenchmarkConfig, you must add the GPU to the enable-list.** The enable-lists are located in `code.common.systems.system_list.SystemClassifications`, under `start_from_device_enabled` and `end_on_device_enabled`, respectively.
+
+### Using NUMA configurations
+
+[NUMA (Non-Uniform Memory Access)](https://man7.org/linux/man-pages/man7/numa.7.html) is a feature for multi-processor systems to divide memory into multiple memory nodes. If your system has multiple CPUs and supports NUMA, then configuring NUMA correctly might be required for optimal performance. Our codebase allows users to specify NUMA configurations for specific systems via the `numa_config` key in the system's config block. **Note that some of our configurations do this already for certain system IDs. If you have a system with an identical GPU layout as an NVIDIA submission, or copied from an existing config block as a template, please REMOVE the numa_config key-value pair, as your system most likely does not have the same NUMA configuration as ours.**
+
+To check if your system supports NUMA, you can use the `numactl` tool:
+
+```
+$ numactl --hardware
+
+available: 4 nodes (0-3)
+node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79
+node 0 size: 128825 MB
+node 0 free: 124581 MB
+node 1 cpus: 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95
+node 1 size: 129016 MB
+node 1 free: 127519 MB
+node 2 cpus: 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111
+node 2 size: 129016 MB
+node 2 free: 120735 MB
+node 3 cpus: 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127
+node 3 size: 128978 MB
+node 3 free: 125733 MB
+node distances:
+node   0   1   2   3
+  0:  10  12  12  12
+  1:  12  10  12  12
+  2:  12  12  10  12
+  3:  12  12  12  10
+```
+The above example shows that there are 4 NUMA nodes (0-3). Each NUMA node has 1 or more CPU cores and a memory address space that is closer (latency-wise) to those CPUs compared to the CPUs of other NUMA nodes. For example, in the above sample output, CPU ID 2 is in NUMA node 0, so CPU 2 can access memory addresses of NUMA node 0 with less latency than memory addresses of NUMA node 3. This CPU may get higher memory bandwidth when accessing memory addresses in NUMA node 0's memory address space. The memory access latency is shown as the 'node distances' table in the output above.
+
+**If the above command shows only a single node, then the system is not configured to take advantage of NUMA affinity.**
+
+However, the `numactl` tool does not show the NUMA affinity of the GPUs in the system. In order to find this information, use `nvidia-smi topo -m`:
+
+```
+$ nvidia-smi topo -m
+
+GPU0    GPU1    GPU2    GPU3    CPU    Affinity        NUMA Affinity
+GPU0     X      SYS     SYS     SYS    48-63,112-127   3
+GPU1    SYS      X      SYS     SYS    32-47,96-111    2
+GPU2    SYS     SYS      X      SYS    16-31,80-95     1
+GPU3    SYS     SYS     SYS      X     0-15,64-79      0
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+```
+The above sample output suggests that GPU3 is in NUMA node 0. You can tell this either by looking at the 'NUMA Affinity' column, or matching the CPU core IDs from the 'Affinity' column with that from `numactl --hardware`. Therefore, performance would be improved if CPUs 0-15 and 65-79 were mapped to talk to GPU 3, using the memory address space of NUMA node 0.
+
+In order to exploit the above NUMA affinity information, it is recommended to configure the harness accordingly. In v2.0, this step has been automated, as during startup, NVIDIA's MLPerf Framework will attempt to do the above steps to compute the NUMA configuration. From **inside the MLPerf Inference container**, launch a Python console and run the following commands:
+
+```
+>>> from code.common.systems.system_list import DETECTED_SYSTEM
+>>> print(DETECTED_SYSTEM.numa_conf)
+3:0-15,64-79&2:16-31,80-95&1:32-47,96-111&0:48-63,112-127
+```
+**On NVIDIA DGX Stations, this method will fail**, since the Mellanox NICs interfere with the steps above. However, this is fine because we **do not use NUMA on DGX Station machines**, since NUMA is meant to improve memory transfer between host and GPU. On DGX Stations, we use start_from_device, so this does not apply.
+
+It is still **recommended** to sanity check and go through the **manual steps** below. If any mismatch is found between the manual steps and automated steps, **please report the bug to NVIDIA**. The **manual** steps to do this differ based on the type of harness:
+
+- LWIS and other "custom" harnesses require users to specify the `numa_config` key in the system's `BenchmarkConfiguration` in the appropriate Python file. The value of this key is specified as a string with the following convention:
+
+```
+[NUMA node 0 config]&[NUMA node 1 config]&[NUMA node 2 config]&...
+
+where [NUMA node n config] is a string in the format: [GPU ID(s)]:[CPU ID(s)]
+where [___ ID(s)] can be a single digit, comma-separated digits, or numeric ranges using dashes.
+```
+For the examples above, the `numa_config` value would be:
+
+```
+numa_config = "3:0-15,64-79&2:16-31,80-95&1:32-47,96-111&0:48-63,112-127"
+```
+This value maps:
+
+    - NUMA node 0 to GPU 3, with CPUs 0-15 and 64-79
+
+    - NUMA node 1 to GPU 2, with CPUs 16-31 and 80-95
+    - NUMA node 2 to GPU 1, with CPUs 32-47 and 96-111
+    - NUMA node 3 to GPU 0, with CPUs 48-63 and 112-127
+
+### System configuration tips
+
+For systems with passively cooled GPUs, and especially NVIDIA T4-based systems, the cooling system in hardware plays an important role in performance. To check for thermal throttling, run `nvidia-smi dmon -s pc` to monitor the GPU temperature while the harness is running. Ideally, the GPU temperature should saturate or stabilize to a reasonable temperature, such as 65C. If the temperature is erratic or spiking, or if the GPU clock frequencies are unstable, you may need to improve your system's cooling solution.
+
+On Jetson platforms, use `tegrastats` instead of `nvidia-smi` to monitor GPU temperature.
+
+In addition, on NVIDIA T4-based systems, lock the GPU clocks at max frequency with
+
+```
+sudo nvidia-smi -lgc 1590,1590
+```
+For systems when running in Server scenario, please make sure that the Transparent Huge Page system setting is set to 'always'.
+
+### Common Build/Runtime Issues
+
+If you encounter errors during engine building or harness execution:
+
+1. **Out-of-memory errors**: Try reducing `gpu_batch_size` to 1 and iteratively increase until the error recurs.
+2. **CUDA graph issues**: Try disabling CUDA graphs if available for the benchmark.
+3. **For LLM benchmarks**: Ensure the server is fully initialized before running the harness. Check the server logs for "Server ready" messages.
+
+### Using expected runtime to recognize issues
+
+The [MLPerf Inference rules](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc) requires each submission to meet certain requirements to become a valid submission. One of these is the requirements is the runtime of the benchmark test. Below, we summarize some mathematical formulas to determine approximate benchmark runtimes.
+
+**Offline:**
+
+Default test runtime:
+
+```
+max((1.1 * min_duration * offline_expected_qps / actual_qps), (min_query_count / actual_qps))
+```
+Where:
+
+- `min_duration`: 600 seconds by default, 60 seconds with `--test_run`
+- `offline_expected_qps`: set by the benchmark's BenchmarkConfiguration
+- `min_query_count`: 24576 by default
+
+The typical runtime of Offline scenario should be around 660 seconds with default settings, 66 seconds with `--test_run` enabled. If the system has a very low QPS, the runtime will be much longer than expected.
+
+**Server:**
+
+Default test runtime:
+
+```
+(min_duration * server_target_qps / actual_qps)
+```
+Recommended test runtime:
+
+```
+max((min_duration * server_target_qps / actual_qps), (min_query_count / actual_qps))
+```
+Where:
+
+- `min_duration`: 600 seconds by default, 60 seconds with `--test_run`
+- `server_target_qps`: set by the benchmark's BenchmarkConfiguration
+- `min_query_count`: 270336 by default
+
+The typical runtime for Server scenario is about 600 seconds (60 seconds with `--test_run`) with `server_target_qps` is equal to or lower than the actual QPS. Otherwise, the runtime will be longer since queries will form a backlog as the SUT cannot process and return the queries in time.
+
+Depending on the performance and latency behavior of the system, the runtime can keep increasing in "Default" mode because the Early Stopping mechanism decides that the current number of samples do not have enough statistical guarantees.
+
+**Early stopping**: under the new rules, *min_query_count* is no longer a requirement for runtime if it becomes prohibitively long. *Early Stopping* allows for systems to process a smaller number of queries during their runs than previously allowed. After we have run for *min_duration*, the system can ask whether the overall processed number of queries already provide statistical guarantees of the reported performance number. If that is not the case, the system will suggest an extended number of queries to run. The system should stop at any case if the current processed number of queries reaches *min_query_count* as is unlikely that running any further would improve the chances of having a successful run (or actual convergence at all, meaning unbounded runtime).
+
+
+
+**SingleStream:**
+
+Default test runtime:
+
+```
+(min_duration / single_stream_expected_latency_ns * actual_latency)
+```
+Recommended test runtime:
+
+```
+max((min_duration / single_stream_expected_latency_ns * actual_latency), (min_query_count * actual_latency))
+```
+Where:
+
+- `min_duration`: 600 seconds by default
+- `single_stream_expected_latency_ns`: set by the benchmark's BenchmarkConfiguration
+- `min_query_count`: 1024 by default
+
+The typical runtime for SingleStream scenario should be about 600 seconds (60 seconds with `--test_run`), unless on a system with a very long latency per sample. In this case, runtime will be much longer.
+
+**Early stopping**: under the new rules, *min_query_count* is no longer a requirement for runtime if it becomes prohibitively long. *Early Stopping* allows for systems to process a smaller number of queries during their runs than previously allowed. After we have run for *min_duration*, the system will report a conservative estimate of latency by adjusting the actual percentile of the reported result based on the actual number of queries processed. It is still recommended to run an increased number of samples (up to *min_query_count*) to improve the final reported result.
+
+**MultiStream:**
+
+Default test runtime:
+
+```
+(min_duration / multi_stream_expected_latency_ns * actual_latency)
+```
+Recommended test runtime:
+
+```
+max((min_duration / multi_stream_expected_latency_ns * actual_latency), (min_query_count * actual_latency))
+```
+Where:
+
+- `min_duration`: 600 seconds by default
+- `multi_stream_expected_latency_ns`: set by the benchmark's BenchmarkConfiguration
+- `min_query_count`: 270336 by default
+
+The typical runtime for MultiStream scenario should be about 600 seconds (60 seconds with `--test_run`), unless on a system with a very long latency per sample. In this case, runtime will be much longer.
+
+**Early stopping**: under the new rules, *min_query_count* is no longer a requirement for runtime if it becomes prohibitively long. *Early Stopping* allows for systems to process a smaller number of queries during their runs than previously allowed. After we have run for *min_duration*, the system will report a conservative estimate of performance (in queries per second) by adjusting the actual percentile of the reported result based on the actual number of queries processed. It is still recommended to run an increased number of samples (up to *min_query_count*) to improve the final reported result.
+
+### Fixing INVALID results
+
+An INVALID result occurs when the harness finishes running successfully, but does not fulfill all of the runtime requirements to be considered valid for an official submission.
+
+**Offline:**
+
+The most common reason for INVALID results in Offline scenario is the actual QPS of the run was *too high* compared to the offline expected QPS. The reason this is reported as INVALID is that this behavior indicates that LoadGen was unable to generate a large enough load to saturate the accelerator. This can have multiple implications, such as not being able to cause the accelerator to reach thermal equilibrium.
+
+For example, if the expected QPS for LoadGen was set to 1000, but the actual QPS of the run ended up to be 1500, it is not accurate to say the true QPS of the system is 1500, as with a smaller load, it is possible the accelerator was able to achieve a 1500 qps throughput at a lower temperature. It is completely possible that when the expected QPS for LoadGen is set to 1500, the accelerator can achieve thermal equilibrium and result in an actual QPS of something like 1300 because of higher temps.
+
+To fix this, simply increase `offline_expected_qps` until the 'max query latency' reported by LoadGen reaches 660 (or 66 seconds depending on the `min_duration` setting), which is when `offline_expected_qps` matches the actual QPS.
+
+**Server:**
+
+The most common reason for INVALID results in Server scenario is that the actual QPS of the system is lower than the specified 'expected Server target QPS'. If this occurs, it will exhibit in the 99th percentile latency (described at the end of the LoadGen output) exceeding the [Server scenario latency target for the benchmark](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc#constraints-for-the-closed-division), which is the criteria to be a valid submission.
+
+To fix this, first try reducing the `server_target_qps` until the 99th percentile latency falls below the [Server latency targets](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc#constraints-for-the-closed-division). If this does not resolve the 99th percentile latency issues, try reducing the `gpu_batch_size` (requires rebuilding the engines each time) and/or `gpu_inference_streams`.
+
+**SingleStream:**
+
+The most common reason for INVALID results in SingleStream scenario is that the actual latency of the system per sample is much lower than the specified SingleStream expected latency. Therefore, simply lower `single_stream_expected_latency_ns` to match the actual 90th percentile latency reported by LoadGen.
+
+**MultiStream:**
+
+The most common reason for INVALID results in MultiStream scenario is that the actual latency of the system per sample is much lower than the specified MultiStream expected latency. Therefore, simply lower `multi_stream_expected_latency_ns` to match the actual 99th percentile 'query' latency reported by LoadGen.
+
+### Tuning parameters for better performance
+
+It is possible to get better performance by tuning various parameters in the config files. To perform such tuning experiments, you can use our parameter-grid-search tool at `closed/NVIDIA/scripts/autotune`. This script has its own README.md to describes its instructions and usage. Note that there is also a subdirectory within the script called `mlperf1.0` that includes the grid search parameter files we used to tune in MLPerf Inference v1.0. Feel free to use those files as a template.
+
+Note that there are benchmark-specific and platform-specific parameters. For example, on Jetson systems, the CV networks (ResNet50, SSDResNet34, SSDMobileNet) also have DLA parameters, such as `dla_batch_size`, that can also be tuned. See `closed/NVIDIA/common/fields.py` to understand the more specific parameters.
+
+**Offline:**
+
+In the Offline scenario, default settings should provide near-optimal performance in most cases. You can try modifying the following parameters:
+
+- `gpu_batch_size`
+- `gpu_copy_streams`
+- `gpu_inference_streams`
+
+**Server:**
+
+In the Server scenario, the goal is to increase `server_target_qps` to its maximal value possible that can still satisfy the [MLPerf Inference server latency requirements](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc#constraints-for-the-closed-division).
+
+This can be done in an iterative process:
+
+1. Increase `server_target_qps` to the maximum value that still meets the latency constraints with the current settings.
+2. Sweep across many variations of the existing settings. This can be done with the parameter-grid-search tool by holding server_target_qps constant once you find it.
+3. Replace the current settings with those providing the lowest latency at the target for the current server_target_qps.
+4. Repeat from step 1 until 'server_target_qps' no longer needs to be tuned
+
+**SingleStream:**
+
+In the SingleStream scenario, there are not many values to tune, since the scenario is so simple. All you need to do is follow the steps from previous sections until it reports a VALID result, mainly with the following parameter:
+
+- `single_stream_expected_latency_ns`
+
+**MultiStream:**
+
+MultiStream is very similar to to SingleStream scenario, except that now each query is composed of 8 samples (or as in multi_stream_samples_per_query). As in SingleStream, it is expected to process query by query, i.e. no other query will be requested until the previously requested query is processed and returned.
+
+Performance tuning is largely upon selecting best performing batch size. The largest batch size is at most 8 samples, and how to group the samples for a batch needs to be considered to finish exactly 8 samples.
+
+First tune for the best performance within 8 samples budget, and then follow the steps from previous sections until it reports a VALID result, with the following parameters:
+
+- `gpu_batch_size`
+- `multi_stream_expected_latency_ns`
+
+### Generating NSYS profiles via `make run_llm_server`
+Only functional for `--core_type=trtllm_endpoint` for now. 
+In order to generate NSYS profiles from trtllm-serve instances:
+- First, user will have to create a yml file with the options to construct an nsys prefix command.
+```
+nsys_path: nsys
+extra_flags: 
+- --cuda-event-trace=false
+- --gpu-metrics-devices=0
+- --trace=cuda,nvtx
+- --capture-range=cudaProfilerApi
+- --cuda-graph-trace=node
+- --capture-range-end=stop-shutdown
+- --force-overwrite=true
+profile_name: llama2-70b-profile-3xfp4
+```
+3 fields are expected:
+  - `nsys_path`: may be a path to binary, or simply `nsys` to use default via PATH in env
+  - `extra_flags`: is an array of `--key=val` args to be passed to nsys
+  - `profile_name`: name of the nsys rep. This will be stored in `$LOG_DIR/`
+  - Then, the path to this yml is provided in `RUN_ARGS` as `--nsys_options=path/to/yml`
+  - Then, generate nsys using: 
+```bash
+export RUN_ARGS="--benchmarks=llama2 --scenarios=Offline --core_type=trtllm_endpoint --accuracy_target=.999 --trtllm_server_urls=0.0.0.0:30000 --nsys_options=/work/sample_yml.yml"
+export TLLM_PROFILE_START_STOP=3000-3100
+make run_llm_server
+make run_harness
+```

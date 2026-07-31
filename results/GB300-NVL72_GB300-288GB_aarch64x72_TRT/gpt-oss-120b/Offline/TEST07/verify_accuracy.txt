@@ -1,0 +1,175 @@
+2026-02-06 16:03:46,799 - INFO - Loading MLPerf log from /work/build/compliance_logs/TEST07/GB300-NVL72_GB300-288GB_aarch64x72_TRT/gpt-oss-120b/Offline/mlperf_log_accuracy.json
+2026-02-06 16:03:47,289 - INFO - Loaded 6396 log entries
+2026-02-06 16:03:47,289 - INFO - Loading reference data from /work/build/data/gpt-oss/v4/acc/acc_eval_compliance_gpqa.parquet
+2026-02-06 16:03:47,418 - INFO - Loaded reference data from Parquet file
+2026-02-06 16:03:47,425 - INFO - Reference data shape: (990, 6)
+2026-02-06 16:03:47,425 - INFO - Reference columns: ['input_tokens', 'num_tokens', 'text_input', 'original_messages', 'ground_truth', 'dataset']
+2026-02-06 16:03:47,429 - INFO - Unique datasets in reference data (1 total):
+2026-02-06 16:03:47,429 - INFO -   'gpqa_diamond' (990 samples)
+2026-02-06 16:03:47,429 - INFO - 
+Sample rows from reference data:
+2026-02-06 16:03:47,429 - INFO -   Row 0: dataset='gpqa_diamond'
+2026-02-06 16:03:47,430 - INFO -   Row 1: dataset='gpqa_diamond'
+2026-02-06 16:03:47,430 - INFO -   Row 2: dataset='gpqa_diamond'
+2026-02-06 16:03:47,430 - INFO - 
+Expected Dataset → Evaluator mapping:
+2026-02-06 16:03:47,430 - INFO -   'gpqa_diamond' (normalized: 'gpqa_diamond') → 'gpqa'
+2026-02-06 16:03:47,430 - INFO - Loading tokenizer: openai/gpt-oss-120b
+2026-02-06 16:03:49,354 - INFO - Grouping MLPerf log entries by dataset...
+2026-02-06 16:03:49,517 - INFO - Grouped entries by dataset:
+2026-02-06 16:03:49,517 - INFO -   gpqa_diamond: 6396 entries
+2026-02-06 16:03:49,517 - INFO - Total entries: 6396
+2026-02-06 16:03:49,517 - INFO - 
+Processing MLPerf log entries by dataset...
+2026-02-06 16:03:49,517 - INFO - 
+================================================================================
+2026-02-06 16:03:49,517 - INFO - Processing gpqa_diamond: 6396 samples
+2026-02-06 16:03:49,517 - INFO - ================================================================================
+
+Evaluating gpqa_diamond:   0%|          | 0/6396 [00:00<?, ?entry/s]
+Evaluating gpqa_diamond:   7%|▋         | 448/6396 [00:00<00:01, 4476.36entry/s]
+Evaluating gpqa_diamond:  14%|█▍        | 896/6396 [00:00<00:01, 3451.52entry/s]
+Evaluating gpqa_diamond:  20%|█▉        | 1256/6396 [00:00<00:01, 2924.63entry/s]
+Evaluating gpqa_diamond:  24%|██▍       | 1561/6396 [00:00<00:01, 2569.22entry/s]
+Evaluating gpqa_diamond:  29%|██▊       | 1827/6396 [00:00<00:02, 2279.81entry/s]
+Evaluating gpqa_diamond:  32%|███▏      | 2062/6396 [00:00<00:02, 2044.20entry/s]
+Evaluating gpqa_diamond:  36%|███▌      | 2271/6396 [00:00<00:02, 1838.89entry/s]
+Evaluating gpqa_diamond:  38%|███▊      | 2458/6396 [00:01<00:02, 1640.63entry/s]
+Evaluating gpqa_diamond:  41%|████      | 2625/6396 [00:01<00:02, 1471.81entry/s]
+Evaluating gpqa_diamond:  43%|████▎     | 2775/6396 [00:01<00:02, 1324.01entry/s]
+Evaluating gpqa_diamond:  45%|████▌     | 2909/6396 [00:01<00:02, 1198.12entry/s]
+Evaluating gpqa_diamond:  47%|████▋     | 3030/6396 [00:01<00:03, 1084.05entry/s]
+Evaluating gpqa_diamond:  49%|████▉     | 3139/6396 [00:01<00:03, 987.28entry/s] 
+Evaluating gpqa_diamond:  51%|█████     | 3238/6396 [00:02<00:03, 906.09entry/s]
+Evaluating gpqa_diamond:  52%|█████▏    | 3329/6396 [00:02<00:03, 841.82entry/s]
+Evaluating gpqa_diamond:  53%|█████▎    | 3413/6396 [00:02<00:03, 784.79entry/s]
+Evaluating gpqa_diamond:  55%|█████▍    | 3491/6396 [00:02<00:03, 731.12entry/s]
+Evaluating gpqa_diamond:  56%|█████▌    | 3564/6396 [00:02<00:04, 685.41entry/s]
+Evaluating gpqa_diamond:  57%|█████▋    | 3632/6396 [00:02<00:04, 646.47entry/s]
+Evaluating gpqa_diamond:  58%|█████▊    | 3696/6396 [00:02<00:04, 614.29entry/s]
+Evaluating gpqa_diamond:  59%|█████▊    | 3757/6396 [00:02<00:04, 576.69entry/s]
+Evaluating gpqa_diamond:  60%|█████▉    | 3815/6396 [00:03<00:04, 548.34entry/s]
+Evaluating gpqa_diamond:  61%|██████    | 3870/6396 [00:03<00:05, 490.13entry/s]
+Evaluating gpqa_diamond:  61%|██████▏   | 3920/6396 [00:03<00:05, 449.28entry/s]
+Evaluating gpqa_diamond:  62%|██████▏   | 3966/6396 [00:03<00:05, 415.76entry/s]
+Evaluating gpqa_diamond:  63%|██████▎   | 4008/6396 [00:03<00:06, 385.97entry/s]
+Evaluating gpqa_diamond:  63%|██████▎   | 4047/6396 [00:03<00:06, 361.43entry/s]
+Evaluating gpqa_diamond:  64%|██████▍   | 4084/6396 [00:03<00:06, 347.63entry/s]
+Evaluating gpqa_diamond:  64%|██████▍   | 4119/6396 [00:03<00:06, 336.52entry/s]
+Evaluating gpqa_diamond:  65%|██████▍   | 4153/6396 [00:04<00:06, 325.23entry/s]
+Evaluating gpqa_diamond:  65%|██████▌   | 4186/6396 [00:04<00:06, 317.62entry/s]
+Evaluating gpqa_diamond:  66%|██████▌   | 4218/6396 [00:04<00:06, 316.34entry/s]
+Evaluating gpqa_diamond:  66%|██████▋   | 4250/6396 [00:04<00:06, 312.43entry/s]
+Evaluating gpqa_diamond:  67%|██████▋   | 4283/6396 [00:04<00:06, 314.30entry/s]
+Evaluating gpqa_diamond:  67%|██████▋   | 4315/6396 [00:04<00:06, 311.45entry/s]
+Evaluating gpqa_diamond:  68%|██████▊   | 4347/6396 [00:04<00:06, 312.40entry/s]
+Evaluating gpqa_diamond:  68%|██████▊   | 4379/6396 [00:04<00:06, 308.56entry/s]
+Evaluating gpqa_diamond:  69%|██████▉   | 4410/6396 [00:04<00:06, 307.82entry/s]
+Evaluating gpqa_diamond:  69%|██████▉   | 4441/6396 [00:05<00:06, 306.09entry/s]
+Evaluating gpqa_diamond:  70%|██████▉   | 4472/6396 [00:05<00:06, 305.18entry/s]
+Evaluating gpqa_diamond:  70%|███████   | 4503/6396 [00:05<00:06, 303.45entry/s]
+Evaluating gpqa_diamond:  71%|███████   | 4534/6396 [00:05<00:06, 300.81entry/s]
+Evaluating gpqa_diamond:  71%|███████▏  | 4565/6396 [00:05<00:06, 301.30entry/s]
+Evaluating gpqa_diamond:  72%|███████▏  | 4596/6396 [00:05<00:05, 300.66entry/s]
+Evaluating gpqa_diamond:  72%|███████▏  | 4627/6396 [00:05<00:05, 300.72entry/s]
+Evaluating gpqa_diamond:  73%|███████▎  | 4658/6396 [00:05<00:05, 300.49entry/s]
+Evaluating gpqa_diamond:  73%|███████▎  | 4689/6396 [00:05<00:05, 299.04entry/s]
+Evaluating gpqa_diamond:  74%|███████▍  | 4719/6396 [00:05<00:05, 297.73entry/s]
+Evaluating gpqa_diamond:  74%|███████▍  | 4749/6396 [00:06<00:05, 297.18entry/s]
+Evaluating gpqa_diamond:  75%|███████▍  | 4780/6396 [00:06<00:05, 298.52entry/s]
+Evaluating gpqa_diamond:  75%|███████▌  | 4812/6396 [00:06<00:05, 301.85entry/s]
+Evaluating gpqa_diamond:  76%|███████▌  | 4843/6396 [00:06<00:05, 299.79entry/s]
+Evaluating gpqa_diamond:  76%|███████▌  | 4873/6396 [00:06<00:05, 296.45entry/s]
+Evaluating gpqa_diamond:  77%|███████▋  | 4903/6396 [00:06<00:05, 294.11entry/s]
+Evaluating gpqa_diamond:  77%|███████▋  | 4933/6396 [00:06<00:04, 294.16entry/s]
+Evaluating gpqa_diamond:  78%|███████▊  | 4963/6396 [00:06<00:04, 293.68entry/s]
+Evaluating gpqa_diamond:  78%|███████▊  | 4993/6396 [00:06<00:04, 291.53entry/s]
+Evaluating gpqa_diamond:  79%|███████▊  | 5024/6396 [00:06<00:04, 294.56entry/s]
+Evaluating gpqa_diamond:  79%|███████▉  | 5054/6396 [00:07<00:04, 293.23entry/s]
+Evaluating gpqa_diamond:  79%|███████▉  | 5084/6396 [00:07<00:04, 293.94entry/s]
+Evaluating gpqa_diamond:  80%|███████▉  | 5116/6396 [00:07<00:04, 299.57entry/s]
+Evaluating gpqa_diamond:  80%|████████  | 5147/6396 [00:07<00:04, 301.23entry/s]
+Evaluating gpqa_diamond:  81%|████████  | 5178/6396 [00:07<00:04, 301.34entry/s]
+Evaluating gpqa_diamond:  81%|████████▏ | 5209/6396 [00:07<00:03, 297.32entry/s]
+Evaluating gpqa_diamond:  82%|████████▏ | 5239/6396 [00:07<00:03, 295.67entry/s]
+Evaluating gpqa_diamond:  82%|████████▏ | 5270/6396 [00:07<00:03, 299.15entry/s]
+Evaluating gpqa_diamond:  83%|████████▎ | 5300/6396 [00:07<00:03, 298.55entry/s]
+Evaluating gpqa_diamond:  83%|████████▎ | 5330/6396 [00:07<00:03, 297.78entry/s]
+Evaluating gpqa_diamond:  84%|████████▍ | 5360/6396 [00:08<00:03, 296.89entry/s]
+Evaluating gpqa_diamond:  84%|████████▍ | 5390/6396 [00:08<00:03, 297.05entry/s]
+Evaluating gpqa_diamond:  85%|████████▍ | 5421/6396 [00:08<00:03, 298.62entry/s]
+Evaluating gpqa_diamond:  85%|████████▌ | 5452/6396 [00:08<00:03, 300.49entry/s]
+Evaluating gpqa_diamond:  86%|████████▌ | 5483/6396 [00:08<00:03, 296.87entry/s]
+Evaluating gpqa_diamond:  86%|████████▌ | 5513/6396 [00:08<00:02, 297.06entry/s]
+Evaluating gpqa_diamond:  87%|████████▋ | 5543/6396 [00:08<00:02, 294.71entry/s]
+Evaluating gpqa_diamond:  87%|████████▋ | 5573/6396 [00:08<00:02, 294.21entry/s]
+Evaluating gpqa_diamond:  88%|████████▊ | 5603/6396 [00:08<00:02, 292.35entry/s]
+Evaluating gpqa_diamond:  88%|████████▊ | 5633/6396 [00:09<00:02, 294.12entry/s]
+Evaluating gpqa_diamond:  89%|████████▊ | 5663/6396 [00:09<00:02, 290.86entry/s]
+Evaluating gpqa_diamond:  89%|████████▉ | 5693/6396 [00:09<00:02, 291.54entry/s]
+Evaluating gpqa_diamond:  89%|████████▉ | 5724/6396 [00:09<00:02, 295.33entry/s]
+Evaluating gpqa_diamond:  90%|████████▉ | 5754/6396 [00:09<00:02, 294.10entry/s]
+Evaluating gpqa_diamond:  90%|█████████ | 5784/6396 [00:09<00:02, 290.66entry/s]
+Evaluating gpqa_diamond:  91%|█████████ | 5814/6396 [00:09<00:02, 287.02entry/s]
+Evaluating gpqa_diamond:  91%|█████████▏| 5844/6396 [00:09<00:01, 289.86entry/s]
+Evaluating gpqa_diamond:  92%|█████████▏| 5874/6396 [00:09<00:01, 292.21entry/s]
+Evaluating gpqa_diamond:  92%|█████████▏| 5904/6396 [00:09<00:01, 292.85entry/s]
+Evaluating gpqa_diamond:  93%|█████████▎| 5934/6396 [00:10<00:01, 290.79entry/s]
+Evaluating gpqa_diamond:  93%|█████████▎| 5964/6396 [00:10<00:01, 290.87entry/s]
+Evaluating gpqa_diamond:  94%|█████████▎| 5994/6396 [00:10<00:01, 291.81entry/s]
+Evaluating gpqa_diamond:  94%|█████████▍| 6024/6396 [00:10<00:01, 290.18entry/s]
+Evaluating gpqa_diamond:  95%|█████████▍| 6055/6396 [00:10<00:01, 294.16entry/s]
+Evaluating gpqa_diamond:  95%|█████████▌| 6085/6396 [00:10<00:01, 295.06entry/s]
+Evaluating gpqa_diamond:  96%|█████████▌| 6115/6396 [00:10<00:00, 293.93entry/s]
+Evaluating gpqa_diamond:  96%|█████████▌| 6145/6396 [00:10<00:00, 294.03entry/s]
+Evaluating gpqa_diamond:  97%|█████████▋| 6175/6396 [00:10<00:00, 290.66entry/s]
+Evaluating gpqa_diamond:  97%|█████████▋| 6205/6396 [00:10<00:00, 289.17entry/s]
+Evaluating gpqa_diamond:  97%|█████████▋| 6235/6396 [00:11<00:00, 289.39entry/s]
+Evaluating gpqa_diamond:  98%|█████████▊| 6264/6396 [00:11<00:00, 288.45entry/s]
+Evaluating gpqa_diamond:  98%|█████████▊| 6293/6396 [00:11<00:00, 288.71entry/s]
+Evaluating gpqa_diamond:  99%|█████████▉| 6324/6396 [00:11<00:00, 292.30entry/s]
+Evaluating gpqa_diamond:  99%|█████████▉| 6354/6396 [00:11<00:00, 292.06entry/s]
+Evaluating gpqa_diamond: 100%|█████████▉| 6384/6396 [00:11<00:00, 289.80entry/s]
+Evaluating gpqa_diamond: 100%|██████████| 6396/6396 [00:11<00:00, 549.41entry/s]
+2026-02-06 16:04:01,159 - INFO - 
+Calculating final scores...
+2026-02-06 16:04:01,159 - INFO - Evaluation complete!
+
+================================================================================
+MLPerf Accuracy Evaluation Results
+================================================================================
+Total samples evaluated: 6396
+Overall raw accuracy: 61.19% (3914/6396)
+================================================================================
+
+Per-Dataset Breakdown:
+--------------------------------------------------------------------------------
+Dataset                    Correct    Total  Repeats      Score   Accuracy
+--------------------------------------------------------------------------------
+gpqa_diamond                  3914     6396        5     782.80     61.19%
+================================================================================
+
+Final Score Calculation:
+--------------------------------------------------------------------------------
+Formula: gpqa_diamond/5
+Score:   = 3914/5
+         = 782.80
+         = 782.80
+Max:     = 6396/5
+         = 1279.20
+
+FINAL SCORE: 61.19% (782.80/1279.20)
+================================================================================
+
+
+Printing for submission_checker:
+
+'exact_match': 61.194
+
+================================================================================
+TEST07 Verification Summary
+================================================================================
+Accuracy score: 61.194
+Accuracy threshold: 60.698
+Accuracy check pass: True
+TEST PASS

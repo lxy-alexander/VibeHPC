@@ -1,0 +1,23 @@
+============================================================
+VBench Evaluation Results
+============================================================
+
+Dimension Scores:
+------------------------------------------------------------
+  appearance_style              : 0.2118
+  background_consistency        : 0.9181
+  dynamic_degree                : 0.9167
+  motion_smoothness             : 0.9192
+  scene                         : 0.3183
+  subject_consistency           : 0.9092
+'vbench_score': 69.8883
+------------------------------------------------------------
+  Overall Average               : 0.6989 (69.89%)
+
+Threshold: 69.7752%
+Pass: Yes
+============================================================
+Detailed results: /work/build/logs/2026.02.10-20.18.30/GB200-NVL72_GB200-186GB_aarch64x4_TRT/wan-2.2-t2v-a14b/Offline/vbench_results/results_2026-02-10-23:22:18_eval_results.json
+============================================================
+
+hash=0989454cdeb12dee0c3b69aaacc4227877a0740deb782f8d7f0896cd82736ce4

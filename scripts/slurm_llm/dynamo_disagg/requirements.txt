@@ -1,0 +1,6 @@
+# Requirements for launch_disagg_cluster.py
+# Install with: pip install -r scripts/slurm_llm/dynamo_disagg/requirements.txt
+
+PyYAML
+tqdm
+nvmitten @ git+https://github.com/NVIDIA/mitten@4b6d18d76a530cfad4c70302d93d9afd68e7d99d

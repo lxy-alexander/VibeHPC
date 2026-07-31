@@ -1,0 +1,497 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#	 http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+ifndef MAKEFILE_DOCKER_INCLUDED
+MAKEFILE_DOCKER_INCLUDED := 1
+
+# This Makefile includes all the variables and targets used to set up NVIDIA's MLPerf Inference docker environment
+include $(CURDIR)/Makefile.const
+include $(CURDIR)/Makefile.build
+
+# Used in release process, Do not modify
+PARTNER_DROP ?= 0
+PARTNER_RELEASE := 0
+
+# Intranet returns zero, public network returns non zero
+# Force the EXTERNAL_USER to be 1 if the error code is other than 1
+EXTERNAL_USER ?= $(shell bash $(PROJECT_ROOT)/scripts/check_intranet.sh)
+ifeq ($(EXTERNAL_USER),0)
+    EXTERNAL_USER := 0
+else
+    EXTERNAL_USER := 1
+endif
+
+# Conditional Docker flags
+ifndef DOCKER_DETACH
+    DOCKER_DETACH := 0
+endif
+ifndef DOCKER_TAG
+    DOCKER_TAG := $(UNAME)-$(ARCH)
+endif
+
+DOCKER_BUILDKIT = 1
+HOST_VOL ?= ${PWD}
+CONTAINER_VOL ?= /work
+NO_DOCKER_PULL ?= 0
+DOCKER_BUILD_NETWORK ?= host
+
+
+# The below paths are for internal use only.
+# If any extra mounting path is needed, please use DOCKER_ARGS environment variables
+ifneq ($(wildcard /home/scratch.mlperf_inference),)
+    DOCKER_MOUNTS += -v /home/scratch.mlperf_inference:/home/scratch.mlperf_inference
+endif
+ifneq ($(wildcard /home/mlperf_inf_dlrmv2),)
+    DOCKER_MOUNTS += -v /home/mlperf_inf_dlrmv2:/home/mlperf_inf_dlrmv2
+endif
+ifneq ($(wildcard /home/mlperf_inf_rgat),)
+    DOCKER_MOUNTS += -v /home/mlperf_inf_rgat:/home/mlperf_inf_rgat
+endif
+ifneq ($(wildcard /home/scratch.svc_compute_arch),)
+    DOCKER_MOUNTS += -v /home/scratch.svc_compute_arch:/home/scratch.svc_compute_arch
+endif
+ifneq ($(wildcard /home/scratch.computelab/sudo),)
+    DOCKER_MOUNTS += -v /home/scratch.computelab/sudo:/home/scratch.computelab/sudo
+endif
+ifneq ($(wildcard /home/scratch.dlsim),)
+    DOCKER_MOUNTS += -v /home/scratch.dlsim:/home/scratch.dlsim
+endif
+ifneq ($(wildcard /raid/data),)
+    DOCKER_MOUNTS += -v /raid/data:/raid/data
+endif
+ifneq ($(wildcard /home/mlperf_inference_storage_01),)
+    DOCKER_MOUNTS += -v /home/mlperf_inference_storage_01:/home/mlperf_inference_storage_01
+endif
+ifneq ($(wildcard $(PROJECT_ROOT)/../../regression),)
+    DOCKER_MOUNTS += -v $(shell realpath $(PROJECT_ROOT)/../../regression):/regression
+endif
+ifdef MLPERF_SCRATCH_PATH
+    ifneq ($(wildcard $(MLPERF_SCRATCH_PATH)),)
+        DOCKER_MOUNTS += -v $(MLPERF_SCRATCH_PATH):$(MLPERF_SCRATCH_PATH)
+    else
+        $(error Path set in MLPERF_SCRATCH_PATH does not exist!)
+    endif
+endif
+
+
+# Handle all docker environment variables
+DOCKER_ENV_VAR += -e NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES}
+DOCKER_ENV_VAR += -e HISTFILE=/mnt/${HOME}/.mlperf_bash_history
+# Forwarding ssh socket for git inside docker
+DOCKER_ENV_VAR += -e SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
+DOCKER_ENV_VAR += -e MLPERF_SCRATCH_PATH=$(MLPERF_SCRATCH_PATH)
+DOCKER_ENV_VAR += -e HOST_HOSTNAME=$(HOSTNAME)
+ifdef CCACHE_DIR
+    DOCKER_MOUNTS += -v $(CCACHE_DIR):/home/$(UNAME)/.ccache
+    DOCKER_ENV_VAR += -e CCACHE_DIR=/home/$(UNAME)/.ccache
+endif
+
+# Handle different nvidia-docker version. Do not use nvidia-docker when running with CPUs
+ifneq ($(wildcard /usr/bin/nvidia-docker),)
+    DOCKER_RUN_CMD := nvidia-docker run
+    # Set Environment variables to fix docker client and server version mismatch
+    # Related issue: https://github.com/kubernetes-sigs/kubespray/issues/6160
+    export DOCKER_API_VERSION=1.40
+else
+    DOCKER_RUN_CMD := docker run --runtime=nvidia
+endif
+
+# If specific DOCKER_COMMAND is not passed, launch interactive docker container session.
+ifeq ($(DOCKER_COMMAND),)
+    DOCKER_INTERACTIVE_FLAGS = -it
+else
+    DOCKER_INTERACTIVE_FLAGS =
+endif
+
+
+# Docker container host name
+RANDOM := $(shell bash -c 'echo $$RANDOM')
+DOCKER_NAME := mlperf-inference-$(DOCKER_TAG)-$(RANDOM)
+
+SSH_AGENT_CMD = eval $$(ssh-agent -s) && ssh-add /home/${USER}/.ssh/* 2>/dev/null || true &&
+
+extra_docker_flags := --ssh default
+
+# Build control variables
+FORCE_BUILD ?= 0  # Set to 1 to force rebuild even if prebuilt image exists
+PUSH ?= 0         # Set to 1 to push built images to registry
+
+# TRT-LLM build configuration variables
+ifeq ($(ENV), release)
+    TRTLLM_BUILD_TARGET := release_build
+    TRTLLM_BASE_IMAGE := tensorrt_llm/release:latest
+else
+    TRTLLM_BUILD_TARGET := devel_build
+    TRTLLM_BASE_IMAGE := tensorrt_llm/devel:latest
+endif
+
+# Local tag for the vLLM base image
+Q3VL_VLLM_BUILD_IMAGE_REPO ?= vllm-openai
+Q3VL_VLLM_IMAGE_TAG ?= latest
+Q3VL_VLLM_BASE_IMAGE := $(Q3VL_VLLM_BUILD_IMAGE_REPO):$(Q3VL_VLLM_IMAGE_TAG)
+
+# Anchor for Q3VL build paths so make can be run from any cwd.
+MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+# Release images are cached in the registry, so we can use them to avoid rebuilding from source.
+# Determine whether to use prebuilt images from registry
+ifeq ($(ENV), release)
+    ifeq ($(FORCE_BUILD), 1)
+        USE_PREBUILT_IMAGES := 0
+    else
+        USE_PREBUILT_IMAGES := 1
+    endif
+else
+    USE_PREBUILT_IMAGES := 0
+endif
+
+# Cached image name for TRT-LLM
+TRTLLM_CACHE_REGISTRY ?= gitlab-master.nvidia.com/mlpinf/mlperf-inference/trtllm_images
+CACHED_IMAGE := $(TRTLLM_CACHE_REGISTRY):trtllm-$(ENV)-$(BUILD_CONTEXT)-$(TRTLLM_HASH)
+
+
+
+PREBUILD_ENV_VARS := \
+    ENV=$(ENV) \
+    BUILD_CONTEXT=$(BUILD_CONTEXT) \
+    CUDA_VER=$(CUDA_VER) \
+    TRT_VER=$(TRT_VER) \
+    INSTALL_RGAT_DEPS=$(INSTALL_RGAT_DEPS) \
+    MITTEN_DIR=/work/3rdparty/mitten \
+    INFERENCE_DIR=/work/3rdparty/mlc-inference
+
+DOCKER_BUILD_ARGS := $(foreach var,$(PREBUILD_ENV_VARS),--build-arg "$(var)") $(extra_docker_flags)
+
+# Check if the user is currently under NVIDIA intranet. External users should see 1.
+.PHONY: check_intranet
+check_intranet:
+	@echo "EXTERNAL_USER = $(EXTERNAL_USER)"
+
+# Small helper to check if nvidia-docker is installed correctly.
+.PHONY: docker_sanity
+docker_sanity:
+	docker pull nvcr.io/nvidia/cuda:11.0.3-runtime-ubuntu18.04
+	$(DOCKER_RUN_CMD) --rm \
+		-e NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES} \
+		nvcr.io/nvidia/cuda:11.0.3-runtime-ubuntu18.04 nvidia-smi
+	@echo "Nvidia-docker is installed correctly!"
+
+
+# Map benchmarks to their appropriate build targets
+# Usage:
+#   make prebuild BENCHMARK=llama2-70b              # Build with Docker (default)
+#   make prebuild BENCHMARK=llama2-70b PREBUILD_TYPE=sqsh  # Build with Pyxis/Slurm
+# Format: pattern:target (patterns are regex, case-insensitive)
+PREBUILD_TYPE ?= docker
+BENCHMARK_TARGET_MAP := \
+	.*whisper.*:prebuild_whisper \
+	.*llama.*:prebuild_llm \
+	.*gptoss.*:prebuild_llm \
+	.*deepseek.*:prebuild_llm \
+	.*sdxl.*:prebuild_sdxl \
+	.*dlrm.*:prebuild_dlrm \
+	.*wan.*:prebuild_wan22_a14b \
+	.*q3vl.*:prebuild_q3vl
+
+# Smart prebuild that automatically detects workload type and uses optimized build
+.PHONY: prebuild
+prebuild:
+	@benchmark="$(BENCHMARK)"; \
+	print_valid_benchmarks() { \
+		echo ""; \
+		echo "Valid BENCHMARK targets (case-insensitive patterns):"; \
+		for mapping in $(BENCHMARK_TARGET_MAP); do \
+			pattern=$$(echo "$$mapping" | cut -d: -f1); \
+			cleaned=$$(echo "$$pattern" | sed 's/\.\*//g' | sed 's/\\//g'); \
+			echo "  - $$cleaned"; \
+		done; \
+		echo ""; \
+	}; \
+	if [ -z "$$benchmark" ]; then \
+		echo ""; \
+		echo "ERROR: BENCHMARK must be specified"; \
+		echo "Usage: make prebuild BENCHMARK=<benchmark_name>"; \
+		print_valid_benchmarks; \
+		exit 1; \
+	fi; \
+	target=""; \
+	for mapping in $(BENCHMARK_TARGET_MAP); do \
+		pattern=$$(echo "$$mapping" | cut -d: -f1); \
+		map_target=$$(echo "$$mapping" | cut -d: -f2); \
+		if echo "$$benchmark" | grep -qiE "$$pattern"; then \
+			target="$$map_target"; \
+			break; \
+		fi; \
+	done; \
+	if [ -z "$$target" ]; then \
+		echo ""; \
+		echo "ERROR: Unknown benchmark '$$benchmark'"; \
+		echo "Please specify a supported benchmark name."; \
+		print_valid_benchmarks; \
+		exit 1; \
+	fi; \
+	echo "=========================================="; \
+	echo "Detected benchmark: $$benchmark"; \
+	echo "Target: $$target"; \
+	echo "Prebuild type: $(PREBUILD_TYPE)"; \
+	echo "=========================================="; \
+	$(MAKE) -f Makefile.docker $$target
+
+# Build TRT-LLM docker image (either from cache or source)
+# Caching: If a prebuilt image is available in the registry, use it to avoid rebuilding from source.
+.PHONY: build_trtllm_docker
+build_trtllm_docker:
+	@cd $(TRTLLM_DIR) && \
+	if [ "$(USE_PREBUILT_IMAGES)" = "1" ] && docker pull $(CACHED_IMAGE) 2>/dev/null; then \
+		echo "Using cached image: $(CACHED_IMAGE)"; \
+		docker tag $(CACHED_IMAGE) $(TRTLLM_BASE_IMAGE); \
+	else \
+		echo "Building TensorRT-LLM $(ENV) image from source"; \
+		BUILD_WHEEL_ARGS="--use_ccache --benchmarks -a=${TRTLLM_BUILD_ARCH} --no-venv --clean" $(MAKE) -C docker $(TRTLLM_BUILD_TARGET) || { \
+			echo "Error: Failed to build TensorRT-LLM $(ENV) image"; \
+			exit 1; \
+		}; \
+		if [ "$(ENV)" = "release" ] && [ "$(PUSH)" = "1" ]; then \
+			echo "Pushing image to cache: $(CACHED_IMAGE)"; \
+			docker tag $(TRTLLM_BASE_IMAGE) $(CACHED_IMAGE) && \
+			docker push $(CACHED_IMAGE) || echo "Warning: Failed to push image to registry"; \
+		fi; \
+	fi && \
+	cd -
+
+# Build MLPerf docker image
+.PHONY: build_mlperf_docker
+build_mlperf_docker:
+	@if [ -z "$(BASE_IMAGE)" ]; then \
+		echo "Error: BASE_IMAGE must be specified"; \
+		exit 1; \
+	fi
+	@echo "Building MLPerf docker image with base image: $(BASE_IMAGE)"
+	@$(SSH_AGENT_CMD) docker buildx build -t mlperf-inference:$(DOCKER_TAG)-$(ENV)-latest \
+		$(DOCKER_BUILD_ARGS) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		--build-arg INSTALL_ARGS="$(ARGS)" \
+		--network $(DOCKER_BUILD_NETWORK) --build-context common=docker/common \
+		--build-context mitten=3rdparty/mitten \
+		--build-context mlc-inference=3rdparty/mlc-inference \
+		--build-context visual_gen=3rdparty/trtllm/tensorrt_llm/visual_gen \
+		-f docker/Dockerfile docker
+
+
+# Build the LLM docker image with TensorRT-LLM devel as base
+# First builds the TensorRT-LLM devel image, then uses it as base for MLPerf docker image
+# Container caching options:
+#   FORCE_BUILD=1  - Force rebuild even if cached image exists
+#   PUSH=1         - Push built images to registry
+.PHONY: prebuild_llm
+prebuild_llm:
+	@echo "Building TensorRT-LLM $(ENV) image"
+	@echo "TRT-LLM Hash: $(TRTLLM_HASH)"
+ifeq ($(PREBUILD_TYPE),sqsh)
+	@$(MAKE) -f Makefile.pyxis build_trtllm_sqsh
+	@$(MAKE) -f Makefile.pyxis build_mlperf_sqsh BASE_IMAGE="$(BUILD_DIR)/sqsh_images/trtllm-$(ENV)-$(TRTLLM_HASH).sqsh" ARGS="--base_requirements --mitten --loadgen --llm_requirements"
+	@$(MAKE) -f Makefile.pyxis launch_sqsh
+else
+	@$(MAKE) -f Makefile.docker check_user_requirements
+	@$(MAKE) -f Makefile.docker build_trtllm_docker
+	@$(MAKE) -f Makefile.docker build_mlperf_docker BASE_IMAGE=$(TRTLLM_BASE_IMAGE) ARGS="--base_requirements --mitten --loadgen --llm_requirements"
+ifneq ($(strip ${DOCKER_DETACH}), 1)
+	@$(MAKE) -f Makefile.docker attach_docker || true
+endif
+endif
+
+# Build the Whisper docker image with TensorRT-LLM devel as base
+.PHONY: prebuild_whisper
+prebuild_whisper:
+	@echo "Building Whisper $(ENV) image with TensorRT-LLM"
+	@echo "TRT-LLM Hash: $(TRTLLM_HASH)"
+ifeq ($(PREBUILD_TYPE),sqsh)
+	@echo "ERROR: Whisper SQSH prebuild is not supported yet." && exit 1
+else
+	@$(MAKE) -f Makefile.docker check_user_requirements
+	@$(MAKE) -f Makefile.docker build_trtllm_docker
+	@$(MAKE) -f Makefile.docker build_mlperf_docker BASE_IMAGE=$(TRTLLM_BASE_IMAGE) ARGS="--base_requirements --mitten --loadgen --whisper_requirements"
+ifneq ($(strip ${DOCKER_DETACH}), 1)
+	@$(MAKE) -f Makefile.docker attach_docker || true
+endif
+endif
+
+# Build the SDXL docker image with NGC PyTorch base image
+.PHONY: prebuild_sdxl
+prebuild_sdxl:
+	@echo "Building SDXL $(ENV) image"
+ifeq ($(PREBUILD_TYPE),sqsh)
+	@$(MAKE) -f Makefile.pyxis build_mlperf_sqsh BASE_IMAGE="nvcr.io/nvidia/pytorch:25.05-py3" ARGS="--base_requirements --mitten --loadgen --trt --sdxl_requirements"
+	@$(MAKE) -f Makefile.pyxis launch_sqsh
+else
+	@$(MAKE) -f Makefile.docker check_user_requirements
+	@$(MAKE) -f Makefile.docker build_mlperf_docker BASE_IMAGE=nvcr.io/nvidia/pytorch:25.05-py3 ARGS="--base_requirements --mitten --loadgen --trt --sdxl_requirements"
+ifneq ($(strip ${DOCKER_DETACH}), 1)
+	@$(MAKE) -f Makefile.docker attach_docker || true
+endif
+endif
+
+DLRM_CACHE_REGISTRY ?= gitlab-master.nvidia.com/mlpinf/mlperf-inference/dlrm_images
+DLRMV3_BASE_IMAGE := $(DLRM_CACHE_REGISTRY):dlrmv3-release-$(BUILD_CONTEXT)
+
+.PHONY: prebuild_dlrm
+prebuild_dlrm:
+	@if [ "$(USE_PREBUILT_IMAGES)" = "1" ] && docker pull $(DLRMV3_BASE_IMAGE) 2>/dev/null; then \
+		echo "Using cached image: $(DLRMV3_BASE_IMAGE)"; \
+	else \
+		echo "Building DLRMv3 $(ENV) image from source"; \
+		if [ "$(BUILD_CONTEXT)" = "aarch64-Grace" ]; then \
+			$(MAKE) -C code/dlrm-v3 build_docker_graceblackwell DLRMV3_BASE_IMAGE=$(DLRMV3_BASE_IMAGE) || { \
+				echo "Error: Failed to build DLRMv3 $(ENV) graceblackwell image"; \
+				exit 1; \
+			}; \
+		else \
+			$(MAKE) -C code/dlrm-v3 build_docker_blackwell DLRMV3_BASE_IMAGE=$(DLRMV3_BASE_IMAGE) || { \
+				echo "Error: Failed to build DLRMv3 $(ENV) image"; \
+				exit 1; \
+			}; \
+		fi; \
+		if [ "$(PUSH)" = "1" ]; then \
+			echo "Pushing image to cache: $(DLRMV3_BASE_IMAGE)"; \
+			docker push $(DLRMV3_BASE_IMAGE) || echo "Warning: Failed to push image to registry"; \
+		fi; \
+	fi
+	@docker tag $(DLRMV3_BASE_IMAGE) mlperf-inference:dlrmv3-release-latest
+	@$(MAKE) -f Makefile.docker docker_add_user DOCKER_TAG=dlrmv3 ENV=release
+	@$(MAKE) -f Makefile.docker launch_docker DOCKER_TAG=dlrmv3 ENV=release
+
+# Build the Wan-2.2 A14B docker image with TensorRT-LLM base
+.PHONY: prebuild_wan22_a14b
+prebuild_wan22_a14b:
+	@echo "Building Wan-2.2 A14B image with VisionFly"
+ifeq ($(PREBUILD_TYPE),sqsh)
+	@$(MAKE) -f Makefile.pyxis build_mlperf_sqsh BASE_IMAGE="nvcr.io/nvidia/pytorch:25.12-py3" ARGS="--base_requirements --mitten --loadgen --wan22_a14b_requirements"
+	@$(MAKE) -f Makefile.pyxis launch_sqsh
+else
+	@$(MAKE) -f Makefile.docker check_user_requirements
+	@$(MAKE) -f Makefile.docker build_mlperf_docker BASE_IMAGE=nvcr.io/nvidia/pytorch:25.12-py3 ARGS="--base_requirements --mitten --loadgen --wan22_a14b_requirements"
+
+ifneq ($(strip ${DOCKER_DETACH}), 1)
+	@$(MAKE) -f Makefile.docker attach_docker || true
+endif
+endif
+
+# Build Q3VL vLLM base image
+.PHONY: build_q3vl_vllm_base
+build_q3vl_vllm_base:
+	@if docker image inspect "$(Q3VL_VLLM_BASE_IMAGE)" >/dev/null 2>&1 && [ "$(FORCE_BUILD)" != "1" ]; then \
+		echo "Q3VL vLLM base image already exists locally; skipping build (set FORCE_BUILD=1 to rebuild)"; \
+	else \
+		echo "Building Q3VL vLLM base image via build_image.sh: $(Q3VL_VLLM_BASE_IMAGE)"; \
+		cd $(MAKEFILE_DIR) && bash $(MAKEFILE_DIR)/code/qwen3-vl-235b-a22b/vllm/scripts/build_image.sh \
+			--result-image-tag "$(Q3VL_VLLM_BASE_IMAGE)" \
+			--mlperf-inf-mm-q3vl-nv-install-url "code/qwen3-vl-235b-a22b/vllm"; \
+	fi
+
+# Build the Qwen3-VL docker image with TensorRT-LLM base
+.PHONY: prebuild_q3vl
+prebuild_q3vl:
+	@echo "Building Qwen3-VL $(ENV) image"
+ifeq ($(PREBUILD_TYPE),sqsh)
+	@echo "ERROR: Q3VL SQSH prebuild is not supported yet." && exit 1
+	@$(MAKE) -f Makefile.pyxis build_q3vl_vllm_base_sqsh
+	@$(MAKE) -f Makefile.pyxis build_mlperf_sqsh BASE_IMAGE="$(Q3VL_VLLM_SQSH_IMAGE)" ARGS="--base_requirements --mitten --q3vl_requirements"
+	@$(MAKE) -f Makefile.pyxis launch_sqsh
+else
+	@$(MAKE) -f Makefile.docker build_q3vl_vllm_base
+	@$(MAKE) -f Makefile.docker build_mlperf_docker BASE_IMAGE=$(Q3VL_VLLM_BASE_IMAGE) DOCKER_BUILD_NETWORK=default ARGS="--base_requirements --mitten --q3vl_requirements"
+
+ifneq ($(strip ${DOCKER_DETACH}), 1)
+	@$(MAKE) -f Makefile.docker attach_docker_q3vl || true
+endif
+endif
+
+# Attach to docker container and install Q3VL package before dropping to shell
+.PHONY: attach_docker_q3vl
+attach_docker_q3vl:
+	@$(MAKE) -f Makefile.docker docker_add_user
+	@$(MAKE) -f Makefile.docker launch_docker_q3vl
+
+# Launch docker container and install Q3VL package before dropping to interactive shell
+.PHONY: launch_docker_q3vl
+launch_docker_q3vl:
+	eval $$(ssh-agent -s) > /dev/null 2>&1 && \
+	$(DOCKER_RUN_CMD) --rm $(DOCKER_INTERACTIVE_FLAGS) -w /work \
+		-v $(realpath $(HOST_VOL)):$(CONTAINER_VOL) -v $(realpath ${HOME}):/mnt/${HOME} \
+		--cap-add SYS_ADMIN --cap-add SYS_TIME \
+		--shm-size=32gb \
+		--ulimit memlock=-1 \
+		-v $$SSH_AUTH_SOCK:/run/host-services/ssh-auth.sock \
+		-v /etc/timezone:/etc/timezone:ro -v /etc/localtime:/etc/localtime:ro \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		--security-opt apparmor=unconfined --security-opt seccomp=unconfined \
+		--name $(DOCKER_NAME) -h $(subst _,-,$(shell echo $(DOCKER_NAME) | cut -c -64)) --add-host $(subst _,-,$(DOCKER_NAME)):127.0.0.1 \
+		--cpuset-cpus $(shell taskset -c -p $$$$ | awk '{print $$NF}') \
+		--user $(UID) --net host --device /dev/fuse \
+		$(DOCKER_MOUNTS) $(DOCKER_ARGS) \
+		$(DOCKER_ENV_VAR) \
+		$(shell if [ -n "$$MIG_CONF" ] && [ "$$MIG_CONF" = "ALL" ]; then echo "--gpus all -e NVIDIA_MIG_CONFIG_DEVICES=all"; elif [ -n "$$MIG_CONF" ] && [ "$$MIG_CONF" != "OFF" ]; then echo "--gpus '\"device=`bash scripts/mig_get_uuid.sh`\"'"; fi) \
+		--entrypoint /bin/bash \
+		mlperf-inference:$(DOCKER_TAG)-$(ENV)-latest \
+		-c "exec bash"
+
+# Attach to docker container with VisionFly installation for Wan-2.2 A14B
+# UID 0 is reserved for the root user, which is not allowed to run the docker container.
+.PHONY: check_user_requirements
+check_user_requirements:
+	@if [ $(UID) -eq 0 ]; then \
+		echo "ERROR: User $(UNAME) has UID 0 (root). This is not allowed for security reasons."; \
+		exit 1; \
+	fi
+	@if [ "$(NO_GPU_DETECTED)" -eq 1 ]; then  \
+		echo "No NVIDIA GPU detected."; exit 1; \
+	fi
+
+# Add current user into docker image.
+.PHONY: docker_add_user
+docker_add_user:
+	@echo "Adding user account into image"
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build -t mlperf-inference:$(DOCKER_TAG)-$(ENV)-latest --network host \
+		--build-arg BASE_IMAGE=mlperf-inference:$(DOCKER_TAG)-$(ENV)-latest \
+		--build-arg GID=$(GROUPID) --build-arg UID=$(UID) --build-arg GROUP=$(GROUPNAME) --build-arg USER=$(UNAME) \
+		- < docker/Dockerfile.user
+
+# Add user and launch an interactive container session.
+.PHONY: attach_docker
+attach_docker:
+	@$(MAKE) -f Makefile.docker docker_add_user
+	@$(MAKE) -f Makefile.docker launch_docker
+
+# Launch a container session.
+.PHONY: launch_docker
+launch_docker:
+	eval $$(ssh-agent -s) > /dev/null 2>&1 && \
+	$(DOCKER_RUN_CMD) --rm $(DOCKER_INTERACTIVE_FLAGS) -w /work \
+		-v $(realpath $(HOST_VOL)):$(CONTAINER_VOL) -v $(realpath ${HOME}):/mnt/${HOME} \
+		--cap-add SYS_ADMIN --cap-add SYS_TIME \
+		--shm-size=32gb \
+		--ulimit memlock=-1 \
+		-v $$SSH_AUTH_SOCK:/run/host-services/ssh-auth.sock \
+		-v /etc/timezone:/etc/timezone:ro -v /etc/localtime:/etc/localtime:ro \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		--security-opt apparmor=unconfined --security-opt seccomp=unconfined \
+		--name $(DOCKER_NAME) -h $(subst _,-,$(shell echo $(DOCKER_NAME) | cut -c -64)) --add-host $(subst _,-,$(DOCKER_NAME)):127.0.0.1 \
+		--cpuset-cpus $(shell taskset -c -p $$$$ | awk '{print $$NF}') \
+		--user $(UID) --net host --device /dev/fuse \
+		$(DOCKER_MOUNTS) $(DOCKER_ARGS) \
+		$(DOCKER_ENV_VAR) \
+		$(shell if [ -n "$$MIG_CONF" ] && [ "$$MIG_CONF" = "ALL" ]; then echo "--gpus all -e NVIDIA_MIG_CONFIG_DEVICES=all"; elif [ -n "$$MIG_CONF" ] && [ "$$MIG_CONF" != "OFF" ]; then echo "--gpus '\"device=`bash scripts/mig_get_uuid.sh`\"'"; fi) \
+		mlperf-inference:$(DOCKER_TAG)-$(ENV)-latest $(DOCKER_COMMAND)
+
+endif # ifndef MAKEFILE_DOCKER_INCLUDED

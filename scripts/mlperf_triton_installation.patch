@@ -1,0 +1,13 @@
+diff --git a/build.py b/build.py
+index aeb24427..4857b335 100755
+--- a/build.py
++++ b/build.py
+@@ -1695,7 +1695,7 @@ def core_build(
+ 
+ def tensorrtllm_prebuild(cmake_script):
+     # Export the TRT_ROOT environment variable
+-    cmake_script.cmd("export TRT_ROOT=/usr/local/tensorrt")
++    cmake_script.cmd("export TRT_ROOT=/work/build/triton-inference-server/out/trt_link")
+     cmake_script.cmd("export ARCH=$(uname -m)")
+     cmake_script.cmd(
+         'export LD_LIBRARY_PATH="/usr/local/cuda/compat/lib.real:${LD_LIBRARY_PATH}"'

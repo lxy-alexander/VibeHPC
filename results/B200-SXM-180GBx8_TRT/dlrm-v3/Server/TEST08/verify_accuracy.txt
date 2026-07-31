@@ -1,0 +1,13 @@
+Verifying accuracy. This might take a while...
+Reading accuracy mode results...
+Reading performance mode results...
+
+num_acc_log_entries = 349823
+num_perf_log_entries = 4039
+num_matched = 4039
+num_unmatched = 0
+num_ne_mismatch = 0
+tolerance = 0.10%
+
+TEST PASS
+TEST08 verification complete

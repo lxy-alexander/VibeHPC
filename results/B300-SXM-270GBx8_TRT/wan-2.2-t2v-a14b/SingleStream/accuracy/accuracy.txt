@@ -1,0 +1,23 @@
+============================================================
+VBench Evaluation Results
+============================================================
+
+Dimension Scores:
+------------------------------------------------------------
+  appearance_style              : 0.2115
+  background_consistency        : 0.9157
+  dynamic_degree                : 0.9583
+  motion_smoothness             : 0.9192
+  scene                         : 0.3401
+  subject_consistency           : 0.9030
+'vbench_score': 70.7974
+------------------------------------------------------------
+  Overall Average               : 0.7080 (70.80%)
+
+Threshold: 69.7752%
+Pass: Yes
+============================================================
+Detailed results: /work/build/logs/2026.02.10-22.54.12/B300-SXM-270GBx8_TRT/wan-2.2-t2v-a14b/SingleStream/vbench_results/results_2026-02-11-01:41:51_eval_results.json
+============================================================
+
+hash=2435f2eb7883414733777aeae23db8c0ca6d61c4ed09e5b8310cfcd12fcfa48d

@@ -1,0 +1,41 @@
+# DeepSeek-R1 GB300: 1 CTX DEP2 + 1 GEN DEP8 MBS128
+# Experiment: 1ctxDEP2_1genDEP8_mbs128_Int_qps5.5_cgSz
+#
+# Performance: ~5.5 QPS per instance (CUTEDSL backend)
+#
+# Node allocation (4 GPUs per node):
+#   - 1 CTX worker @ DEP2 (2 GPUs = 1 node, using GPUs 0-1)
+#   - 1 GEN worker @ DEP8 (8 GPUs = 2 nodes)
+#   - Total: 3 nodes, 10 GPUs
+#
+# Result (num_reqs=13164, ~40 min):
+# | Target QPS | Achieved QPS | Tok/s    | TTFT p99 | TPOT p99 | Result  |
+# |------------|--------------|----------|----------|----------|---------|
+# | 5.5        | ~5.5         | 20,584   | 35.5%    | 94.3%    | VALID   |
+
+benchmark: deepseek-r1
+scenario: Interactive
+
+disagg_cluster:
+  num_prefill_workers: 1
+  num_decode_workers: 1
+  system: GB200-NVL72_GB200-186GB_aarch64x4  # Frontend system (use GB200 system for now)
+  # num_clusters: 1    # Optional: explicit number of clusters (default: auto from nodes)
+  # num_frontends: 1   # Optional: number of frontend replicas per cluster (default: 1)
+  # frontend:          # Optional: frontend-specific configuration
+  #   router_mode: round-robin  # Options: round-robin, kv, random
+  #   kv_overlap_weight: 1.0    # For KV router mode (0.0-1.0), defaults to 1.0 if kv mode
+
+prefill:
+  system: GB200-NVL72_GB200-186GB_aarch64x2
+  gpus_per_worker: 2
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo_disagg/config/dsr1/gb300/dsr1_gb300_ctx_DEP2.yaml
+  env_vars: scripts/slurm_llm/dynamo_disagg/config/dsr1/trtllm_env.yaml
+
+decode:
+  system: GB200-NVL72_GB200-186GB_aarch64x8
+  gpus_per_worker: 8
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo_disagg/config/dsr1/gb300/dsr1_gb300_gen_DEP8.yaml
+  env_vars: scripts/slurm_llm/dynamo_disagg/config/dsr1/trtllm_env.yaml

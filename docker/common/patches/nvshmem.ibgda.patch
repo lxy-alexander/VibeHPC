@@ -1,0 +1,14 @@
+--- a/src/include/device/pt-to-pt/ibgda_device.cuh
++++ b/src/include/device/pt-to-pt/ibgda_device.cuh
+@@ -1912,8 +1912,10 @@ __device__ static inline void ibgda_get_raddr_rkey(uint64_t addr, int dst_pe, in
+     nvshmemi_ibgda_device_state_t *state = ibgda_get_state();
+     uint64_t heap_start = (uint64_t)nvshmemi_device_state_d.heap_base;
+     uint64_t roffset = addr - heap_start;
++    int npes;
++    asm volatile("ld.b32 %0, [%1];" : "=r"(npes) : "l"(&nvshmemi_device_state_d.npes));
+     uint64_t idx =
+-        ((roffset >> state->log2_cumem_granularity) * nvshmemi_device_state_d.npes) + proxy_pe;
++        ((roffset >> state->log2_cumem_granularity) * npes) + proxy_pe;
+     nvshmemi_ibgda_device_key_t device_key;
+     uint64_t raddr;
+ 

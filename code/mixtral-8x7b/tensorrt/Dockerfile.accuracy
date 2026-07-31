@@ -1,0 +1,49 @@
+FROM ubuntu:22.04
+ARG DEBIAN_FRONTEND=noninteractive
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV TZ=ETC/UTC
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PERL_MM_USE_DEFAULT=1
+ENV PERL_EXTUTILS_AUTOINSTALL="--defaultdeps"
+ENV PYTHONPATH="/mxeval/mxeval:${PYTHONPATH}"
+
+RUN apt update && apt install -y sudo software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa && apt update;
+
+# Install python3.9
+RUN apt update && apt install -y python3.9 python3.9-distutils git curl wget zip unzip;
+
+# Install pip
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+    && python3.9 get-pip.py \
+    && rm get-pip.py ;
+
+# Create symbolic links
+RUN ln -s /usr/bin/python3.9 /usr/local/bin/python \
+    && ln -s /usr/bin/python3.9 /usr/local/bin/python3 ;
+
+# Verify installations
+RUN python3.9 --version && pip --version && git --version;
+
+
+SHELL ["/bin/bash", "-i", "-c"]
+WORKDIR "/mxeval"
+
+# Clone and Install mxeval
+RUN git clone https://github.com/amazon-science/mxeval.git \
+  && cd /mxeval/mxeval && git checkout e09974f990eeaf0c0e8f2b5eaff4be66effb2c86 \
+  && sed -i "s/\(mxeval\.evaluate_functional_correctness\)"/\\1:main"/g" setup.py \
+  && python3.9 -m pip install -e . \
+  && python3.9 -m pip install pandas==2.2.3 evaluate==0.4.3 rouge_score==0.1.2 nltk==3.9.1 tqdm==4.67.1 transformers==4.49.0 sentencepiece==0.2.0;
+
+# Install dependencies
+RUN sed -i 's/sudo//g' /mxeval/mxeval/language_setup/ubuntu.sh;
+RUN sed -i 's/source/PS1=1 source/g' /mxeval/mxeval/language_setup/ubuntu.sh;
+RUN sed -i 's/apt\( \|\-get \)install/apt\1install -y/g' /mxeval/mxeval/language_setup/ubuntu.sh;
+RUN sed -i 's/add-apt-repository/add-apt-repository -y/g' /mxeval/mxeval/language_setup/ubuntu.sh;
+
+RUN bash /mxeval/mxeval/language_setup/ubuntu.sh;
+
+CMD bash -i
+WORKDIR /work

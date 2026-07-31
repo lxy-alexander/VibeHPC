@@ -1,0 +1,14 @@
+{
+  "generation_config": {
+    "min_output_len": 1,
+    "max_output_len": 32768,
+    "runtime_beam_width": 1,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "top_k": 0,
+    "streaming": true,
+    "name": "gpt-oss-120b",
+    "skip_special_tokens": false
+  }
+}
+

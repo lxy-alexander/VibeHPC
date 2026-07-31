@@ -1,0 +1,10 @@
+# Whisper-specific audio processing dependencies
+openai-whisper==20250625
+librosa==0.10.1
+soundfile==0.13.0
+sox==1.5.0
+
+# Shared dependencies (duplicated from requirements.llm.txt as they're needed by both)
+tiktoken==0.9.0
+num2words==0.5.14
+safetensors==0.5.2

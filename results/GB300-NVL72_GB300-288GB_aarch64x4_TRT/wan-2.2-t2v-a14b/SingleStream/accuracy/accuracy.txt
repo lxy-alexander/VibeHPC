@@ -1,0 +1,23 @@
+============================================================
+VBench Evaluation Results
+============================================================
+
+Dimension Scores:
+------------------------------------------------------------
+  appearance_style              : 0.2121
+  background_consistency        : 0.9177
+  dynamic_degree                : 0.9444
+  motion_smoothness             : 0.9195
+  scene                         : 0.3147
+  subject_consistency           : 0.9065
+'vbench_score': 70.2488
+------------------------------------------------------------
+  Overall Average               : 0.7025 (70.25%)
+
+Threshold: 69.7752%
+Pass: Yes
+============================================================
+Detailed results: /work/build/logs/2026.02.10-20.31.57/GB300-NVL72_GB300-288GB_aarch64x4_TRT/wan-2.2-t2v-a14b/SingleStream/vbench_results/results_2026-02-10-23:18:21_eval_results.json
+============================================================
+
+hash=9dd7124674dca00e5a32b774dcc3f5d6762e233c80dcfb3f7db908faac67f3ce

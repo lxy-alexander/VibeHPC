@@ -1,0 +1,40 @@
+# DeepSeek-R1 GB300 x72: 4 CTX DEP2 + 8 GEN DEP8, 4 FE, KV Router (w=1)
+# Experiment: 4ctxDEP2_8genDEP8_mbs128_Int_qps44_cgSz
+#
+# x72 GPU Scaling Configuration (CUTEDSL backend)
+# Performance: ~44 QPS (5.5 QPS per GEN instance × 8 instances)
+#
+# Node allocation (4 GPUs per node):
+#   - 4 CTX workers @ DEP2 (2 GPUs each = 8 GPUs = 2 nodes)
+#   - 8 GEN workers @ DEP8 (8 GPUs each = 64 GPUs = 16 nodes)
+#   - 4 Frontends with KV router (weight=1.0)
+#   - Total: 18 nodes, 72 GPUs
+#
+# Recommended run: QPS 44-45, num_reqs=105312 (~40-60 min)
+# Result: TBD
+
+benchmark: deepseek-r1
+scenario: Interactive
+
+disagg_cluster:
+  num_prefill_workers: 4
+  num_decode_workers: 8
+  system: GB200-NVL72_GB200-186GB_aarch64x4  # Frontend system
+  num_frontends: 4
+  frontend:
+    router_mode: kv
+    kv_overlap_weight: 1.0  # w=1 for KV overlap routing
+
+prefill:
+  system: GB200-NVL72_GB200-186GB_aarch64x2
+  gpus_per_worker: 2
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo_disagg/config/dsr1/gb300/dsr1_gb300_ctx_DEP2.yaml
+  env_vars: scripts/slurm_llm/dynamo_disagg/config/dsr1/trtllm_env.yaml
+
+decode:
+  system: GB200-NVL72_GB200-186GB_aarch64x8
+  gpus_per_worker: 8
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo_disagg/config/dsr1/gb300/dsr1_gb300_gen_DEP8.yaml
+  env_vars: scripts/slurm_llm/dynamo_disagg/config/dsr1/trtllm_env.yaml

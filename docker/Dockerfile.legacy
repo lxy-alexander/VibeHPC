@@ -1,0 +1,98 @@
+# syntax=docker/dockerfile:1.4
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as dev
+
+ARG ENV
+ARG BUILD_CONTEXT
+ARG CUDA_VER
+ARG MITTEN_HASH
+ARG MITTEN_GIT_URL
+ARG INSTALL_RGAT_DEPS
+
+
+ENV ENV=${ENV}
+ENV BUILD_CONTEXT=${BUILD_CONTEXT}
+ENV CUDA_VER=${CUDA_VER}
+ENV MITTEN_GIT_URL=${MITTEN_GIT_URL}
+ENV MITTEN_HASH=${MITTEN_HASH}
+ENV INSTALL_RGAT_DEPS=${INSTALL_RGAT_DEPS}
+
+
+SHELL ["/bin/bash", "-c"]
+
+WORKDIR /tmp
+
+# Clean up the pip constraint file from the base NGC PyTorch image.
+RUN [ -f /etc/pip/constraint.txt ] && : > /etc/pip/constraint.txt || true
+
+# 1. apt installs
+COPY --from=common /install_apt_deps.sh .
+RUN if [ -f install_apt_deps.sh ]; then bash install_apt_deps.sh; fi
+
+# 2. pip installs
+COPY --from=common /requirements.${BUILD_CONTEXT}.* .
+COPY --from=common /install_pip_deps.sh .
+RUN if [ -f install_pip_deps.sh ]; then bash install_pip_deps.sh; fi
+
+# 3. Any from-source build required.
+COPY --from=common /install_misc_deps.sh .
+RUN if [ -f install_misc_deps.sh ]; then bash install_misc_deps.sh; fi
+
+# 4. install docker-within-docker, Note: Enroot doesn't support installing docker in enroot image https://nvidia.slack.com/archives/C0767E6SECV/p1741990844295479
+# So in ptyche, we can't run mixtral accuracy evaluation script. 
+COPY --from=common /install_docker.sh .
+RUN if [ -f install_docker.sh ]; then bash install_docker.sh; fi
+
+# 5. install TRTLLM required dependencies
+COPY --from=common /install_tensorrt.sh .
+RUN if [ "$INSTALL_RGAT_DEPS" != "1" ] && [ -f install_tensorrt.sh ]; then bash install_tensorrt.sh; fi
+
+COPY --from=common /install_mpi4py.sh .
+RUN if [ -f install_mpi4py.sh ]; then bash install_mpi4py.sh; fi
+
+# TRTLLM disagg serving specifics.
+COPY --from=common /install_nixl.sh .
+RUN if [ "$INSTALL_RGAT_DEPS" != "1" ] && [ -f install_nixl.sh ]; then bash install_nixl.sh; fi
+
+COPY --from=common /install_ccache.sh .
+RUN if [ -f install_ccache.sh ]; then bash install_ccache.sh; fi
+
+# 6. install mlperf mitten
+RUN --mount=type=ssh GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" \
+    git clone ${MITTEN_GIT_URL} /tmp/mitten
+COPY --from=common /install_mitten.sh .
+RUN if [ -f install_mitten.sh ]; then bash install_mitten.sh; fi
+
+# 7. RGAT installs
+COPY --from=common patches/ /tmp/patches
+COPY --from=common install_rgat_deps.sh .
+RUN if [ "$INSTALL_RGAT_DEPS" = "1" ]; then if [ -f install_rgat_deps.sh ]; then bash install_rgat_deps.sh; fi; fi
+
+WORKDIR /work
+
+# ============================================================================
+# Release stage only (base + loadgen + trtllm)
+# ============================================================================
+FROM dev as release
+ARG LOADGEN_HASH
+ARG INFERENCE_URL
+ARG TRTLLM_HASH
+ARG TRTLLM_URL
+
+ENV LOADGEN_HASH=${LOADGEN_HASH}
+ENV INFERENCE_URL=${INFERENCE_URL}
+ENV TRTLLM_HASH=${TRTLLM_HASH}
+ENV TRTLLM_URL=${TRTLLM_URL}
+
+WORKDIR /opt
+
+# 8. install loadgen (only in release builds)
+COPY --from=common /install_loadgen.sh /opt/
+RUN if [ -f /opt/install_loadgen.sh ]; then bash /opt/install_loadgen.sh; fi
+
+# 9. install trtllm
+COPY ./release/install_trt_llm.sh /opt/
+RUN if [ -f /opt/install_trt_llm.sh ]; then bash /opt/install_trt_llm.sh; fi
+
+WORKDIR /work

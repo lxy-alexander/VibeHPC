@@ -1,0 +1,135 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#	 http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This Makefile contains all the variable and targets related to building the binaries for NVIDIA's MLPerf Inference
+# submission. This includes TensorRT plugins, C++ harness binaries, and Triton Inference Server.
+
+ifndef MAKEFILE_BUILD_INCLUDED
+MAKEFILE_BUILD_INCLUDED := 1
+
+include $(CURDIR)/Makefile.const
+include $(CURDIR)/Makefile.power
+
+# Set the include directory for Loadgen header files
+INFERENCE_DIR ?= $(PROJECT_ROOT)/3rdparty/mlc-inference
+INFERENCE_URL = git@github.com:mlcommons/inference.git
+LOADGEN_INCLUDE_DIR ?= $(INFERENCE_DIR)/loadgen
+LOADGEN_LIB_DIR ?= $(LOADGEN_INCLUDE_DIR)/build
+
+# Set Environment variables to extracted contents
+export LD_LIBRARY_PATH := $(LD_LIBRARY_PATH):/usr/local/cuda/lib64:/usr/lib/$(ARCH)-linux-gnu:$(LOADGEN_LIB_DIR)
+export HARNESS_LD_LIBRARY_PATH := $(LD_LIBRARY_PATH)	# LD_LIBRARY_PATH used during run_harness
+export LIBRARY_PATH := /usr/local/cuda/lib64:/usr/lib/$(ARCH)-linux-gnu:$(LOADGEN_LIB_DIR):$(LIBRARY_PATH)
+export PATH := /usr/local/cuda/bin:$(PATH)
+export CPATH := /usr/local/cuda/include:/usr/include/$(ARCH)-linux-gnu:/usr/include/$(ARCH)-linux-gnu/cub:$(CPATH)
+export CUDA_PATH := /usr/local/cuda
+export CCACHE_DISABLE=1
+export NUMBA_CACHE_DIR=$(BUILD_DIR)/cache
+
+# Set CUDA_DEVICE_MAX_CONNECTIONS to increase multi-stream performance.
+export CUDA_DEVICE_MAX_CONNECTIONS := 32
+
+# mitten hash:
+MITTEN_PUBLIC_GIT_URL := git@github.com:NVIDIA/mitten.git
+MITTEN_GIT_URL := ssh://git@gitlab-master.nvidia.com:12051/mlpinf/mitten.git
+MITTEN_DIR ?= $(PROJECT_ROOT)/3rdparty/mitten
+
+TRT_INCLUDE_DIR = /usr/include/$(ARCH)-linux-gnu/
+
+ifneq (,$(filter $(SM),80 87 89 90 100 103))
+    BUILD_TRTLLM ?= 1
+    ifneq (,$(filter $(SM),90 100 103))
+        TRTLLM_BUILD_ARCH ?= 90-real;100-real;103-real
+    else
+        TRTLLM_BUILD_ARCH ?= 90-real;100-real;103-real;$(SM)-real
+    endif
+else
+    BUILD_TRTLLM ?= 0
+endif
+
+ifeq ($(INSTALL_RGAT_DEPS), 1)
+    BUILD_TRTLLM = 0
+endif
+
+TRTLLM_DIR ?= $(PROJECT_ROOT)/3rdparty/trtllm
+TRTLLM_BUILD_DIR ?= $(TRTLLM_DIR)/build
+TRTLLM_URL = git@github.com:NVIDIA/TensorRT-LLM.git
+TRTLLM_HASH := $(shell cd $(TRTLLM_DIR) 2>/dev/null && git rev-parse HEAD || echo "unknown")
+
+# Plugin build flags
+ifeq ($(DEBUG),1)
+	BUILD_TYPE := Debug
+else
+	BUILD_TYPE := Release
+endif
+
+# Harness build flags
+HARNESS_BUILD_FLAGS := -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+                       -DLOADGEN_INCLUDE_DIR=$(LOADGEN_INCLUDE_DIR) \
+                       -DLOADGEN_LIB_DIR=$(LOADGEN_LIB_DIR) \
+                       -DFFI_UTILS_DIR=$(FFI_UTILS_DIR) \
+                       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+# Add symbolic links to scratch path if it exists.
+.PHONY: link_dirs
+link_dirs:
+	@mkdir -p build
+	@mkdir -p $(DATA_DIR)
+	@mkdir -p $(PREPROCESSED_DATA_DIR)
+	@mkdir -p $(MODEL_DIR)
+	@ln -sfn $(DATA_DIR) $(DATA_DIR_LINK)
+	@ln -sfn $(PREPROCESSED_DATA_DIR) $(PREPROCESSED_DATA_DIR_LINK)
+	@ln -sfn $(MODEL_DIR) $(MODEL_DIR_LINK)
+
+# Build TRT-LLM wheels and librarys in llm specific virtual environment.
+.PHONY: build_trt_llm
+build_trt_llm:
+	@echo "Building TRT-LLM..."
+	cd $(TRTLLM_DIR) && CCACHE_NODISABLE=true python scripts/build_wheel.py --use_ccache --benchmarks -a="$(TRTLLM_BUILD_ARCH)" --no-venv --clean
+
+.PHONY: install_trt_llm
+install_trt_llm:
+	@echo "Installing TRT-LLM..."
+	@if ! ls $(TRTLLM_BUILD_DIR)/tensorrt*.whl 1> /dev/null 2>&1; then \
+		echo "TRT-LLM wheel not found, building TRT-LLM wheel..."; \
+		$(MAKE) build_trt_llm; \
+	fi
+	@pip install $(TRTLLM_BUILD_DIR)/tensorrt*.whl
+
+# Build TensorRT plugins.
+.PHONY: build_plugins
+build_plugins: $(PLUGIN_TARGETS)
+
+.PHONY: $(PLUGIN_TARGETS)
+$(PLUGIN_TARGETS): plugin.%: code/plugin/%
+	mkdir -p build/plugins/$(<F)
+	cd build/plugins/$(<F)\
+		&& cmake -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) $(PROJECT_ROOT)/code/plugin/$(<F) \
+		&& make -j
+
+# Build harness source codes.
+.PHONY: build_harness
+build_harness:
+	@echo "Building harness..."
+	@mkdir -p build/harness \
+		&& cd build/harness \
+		&& cmake -DPYTHON3_CMD=$(PYTHON3_CMD) $(HARNESS_BUILD_FLAGS) $(PROJECT_ROOT)/code/harness
+ifeq ($(INSTALL_RGAT_DEPS), 1)
+	@cd build/harness && make -j FFIUtils
+else
+	@cd build/harness && make -j
+endif
+	@echo "Finished building harness."
+
+endif # ifndef MAKEFILE_BUILD_INCLUDED

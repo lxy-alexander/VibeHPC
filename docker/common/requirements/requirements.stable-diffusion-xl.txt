@@ -1,0 +1,19 @@
+# create onnx model
+diffusers==0.30.3
+transformers==4.45.2
+accelerate==1.0.1
+
+# quantization
+optimum==1.23.3
+nvidia-modelopt[all]~=0.13.1 # the quantize vae workflow is no longer working with newer modelopt version
+
+# general
+numpy==1.26.4
+pandas==2.2.2
+
+#accuracy requirements
+open-clip-torch==2.26.1
+ijson==3.3.0
+Pillow==11.1.0
+scipy==1.14.1
+torchmetrics[image]

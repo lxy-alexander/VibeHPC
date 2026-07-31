@@ -1,0 +1,108 @@
+# For x86_64: --build-arg IMAGE_TAG_SUFFIX=x86_64 --build-arg ARCH=amd64
+ARG IMAGE_TAG_SUFFIX=aarch64
+ARG BASE_IMAGE=nvcr.io/nvidia/mlperf/mlperf-inference:tensorrt_llm_release-feat-1.2-mlpinf-b5ddff4_mlperf-main-f538816_jan28_${IMAGE_TAG_SUFFIX}
+FROM ${BASE_IMAGE}
+
+# Build arguments
+ARG DYNAMO_REPO=https://github.com/ai-dynamo/dynamo.git
+ARG DYNAMO_BRANCH=mlperf-v6.0-dynamo-v0.8.0
+# ARCH: arm64 (aarch64) or amd64 (x86_64). Must match IMAGE_TAG_SUFFIX when using default NGC image.
+ARG ARCH=arm64
+
+# Environment variables for Rust (needed during build)
+ENV CARGO_HOME=/root/.cargo
+ENV RUSTUP_HOME=/root/.rustup
+ENV PATH="${CARGO_HOME}/bin:/usr/local/bin/etcd:${PATH}"
+ENV NATS_VERSION="v2.10.28"
+ENV ETCD_VERSION="v3.5.21"
+
+# ============================================================================
+# System Dependencies
+# ============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libhwloc-dev \
+        libudev-dev \
+        pkg-config \
+        libclang-dev \
+        protobuf-compiler \
+        python3-dev \
+        cmake \
+        curl \
+        git \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================================
+# NATS Server
+# ============================================================================
+RUN wget --tries=3 --waitretry=5 \
+        https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-${ARCH}.deb && \
+    dpkg -i nats-server-${NATS_VERSION}-${ARCH}.deb && \
+    rm nats-server-${NATS_VERSION}-${ARCH}.deb && \
+    nats-server --version
+
+# ============================================================================
+# etcd
+# ============================================================================
+RUN rm -rf /usr/local/bin/etcd /usr/local/bin/etcdctl 2>/dev/null || true && \
+    wget --tries=3 --waitretry=5 \
+        https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-${ARCH}.tar.gz \
+        -O /tmp/etcd.tar.gz && \
+    mkdir -p /usr/local/bin/etcd && \
+    tar -xvf /tmp/etcd.tar.gz -C /usr/local/bin/etcd --strip-components=1 && \
+    rm /tmp/etcd.tar.gz
+
+# ============================================================================
+# Rust + uv
+# ============================================================================
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . "${CARGO_HOME}/env" && \
+    rustup default stable && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# ============================================================================
+# Clone Dynamo
+# ============================================================================
+RUN cd /opt && \
+    git clone --depth 1 --branch ${DYNAMO_BRANCH} ${DYNAMO_REPO} dynamo
+
+# ============================================================================
+# Build Dynamo wheel (slowest step)
+# ============================================================================
+RUN cd /opt/dynamo && \
+    . "${CARGO_HOME}/env" && \
+    /root/.local/bin/uv venv /tmp/build_venv && \
+    . /tmp/build_venv/bin/activate && \
+    /root/.local/bin/uv pip install pip maturin && \
+    cd lib/bindings/python && \
+    maturin build --release --out /opt/dynamo/dist && \
+    deactivate && \
+    rm -rf /tmp/build_venv
+
+# ============================================================================
+# Install Dynamo and dependencies
+# ============================================================================
+RUN pip install /opt/dynamo/dist/*.whl && \
+    pip install -e /opt/dynamo && \
+    pip install "nixl[cu13]<=0.8.0" && \
+    pip install cupy-cuda13x
+
+# ============================================================================
+# Cleanup
+# ============================================================================
+RUN rm -rf /opt/dynamo/target && \
+    rm -rf ${CARGO_HOME}/registry && \
+    rm -rf ${CARGO_HOME}/git
+
+
+# ============================================================================
+# Verify installation
+# ============================================================================
+RUN python -c "import dynamo; print('Dynamo installed successfully')" && \
+    python -c "import cupy; print(f'CuPy version: {cupy.__version__}')" && \
+    python -c "import nixl; print('NIXL installed successfully')"
+
+WORKDIR /workspace
+CMD ["/bin/bash"]
+

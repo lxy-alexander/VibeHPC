@@ -1,0 +1,22 @@
+# Test case 2: SEPARATE allocation (both intra-node but needs multiple nodes)
+# 8 GPU node, 6 prefill × 1 GPU, 4 decode × 1 GPU (10 GPUs total > 8)
+# Expected: SEPARATE mode, 2 nodes per cluster (1 prefill + 1 decode)
+
+benchmark: deepseek-r1
+scenario: Interactive
+
+disagg_cluster:
+  num_prefill_workers: 6
+  num_decode_workers: 4
+
+prefill:
+  system: Test_Systemx1
+  gpus_per_worker: 1
+  gpus_per_node: 8
+  config: /work/test/prefill.yaml
+
+decode:
+  system: Test_Systemx1
+  gpus_per_worker: 1
+  gpus_per_node: 8
+  config: /work/test/decode.yaml

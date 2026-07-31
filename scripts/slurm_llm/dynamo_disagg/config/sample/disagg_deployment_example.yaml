@@ -1,0 +1,79 @@
+# =============================================================================
+# Disaggregated Serving Deployment Configuration
+# =============================================================================
+# This configuration deploys DeepSeek-R1 across multiple nodes with
+# separate prefill and decode workers.
+#
+# Multi-Cluster Support:
+#   - Nodelist is ALWAYS fetched from $SLURM_JOBID
+#   - Number of clusters = len(nodelist) / nodes_per_cluster
+#   - Each cluster gets non-overlapping node allocations
+#   - Example: 10 nodes with 5 nodes/cluster = 2 independent clusters
+
+benchmark: deepseek-r1
+scenario: Interactive
+
+# Container image (required)
+container_image: /lustre/fsw/coreai_mlperf_inference/mlperf_inference_images/mlpinf+mlperf-inference+dynamo-v0.8.0-tensorrt_llm_release-feat-1.2-mlpinf-5ad8cf6_sms_90_100_103_120-mlperf_llm_aarch64+latest.sqsh
+
+# Storage mount path (optional, defaults shown)
+storage_path: /lustre/share/coreai_mlperf_inference/mlperf_inference_storage_clone
+
+# SLURM job ID (optional, will auto-detect from $SLURM_JOBID if not specified)
+slurm_jobid: null
+
+# =============================================================================
+# Disaggregated Cluster Template
+# =============================================================================
+# Defines the configuration for EACH cluster instance.
+# The script automatically infers the number of clusters based on:
+#   num_clusters = len(nodelist) / (prefill_num_nodes + decode_num_nodes)
+disagg_cluster:
+  num_prefill_workers: 1   # Number of prefill worker instances per cluster
+  num_decode_workers: 1    # Number of decode worker instances per cluster
+  system: GB200-NVL72_GB200-186GB_aarch64x4  # System name for frontend
+
+# =============================================================================
+# Prefill Workers Specification
+# =============================================================================
+prefill:
+  gpus_per_worker: 4  # GPUs per worker instance
+  gpus_per_node: 4    # GPUs available per node (must match decode)
+  # Calculation: total_gpus = 4 * 1 (num_prefill_workers) = 4
+  #              num_nodes = 4 / 4 = 1 node per cluster
+  
+  config: /work/scripts/slurm_llm/dynamo/trtllm/deepseek-r1/prefill_config.yaml
+
+# =============================================================================
+# Decode Workers Specification
+# =============================================================================
+decode:
+  gpus_per_worker: 16  # GPUs per worker instance
+  gpus_per_node: 4     # GPUs available per node (must match prefill)
+  # Calculation: total_gpus = 16 * 1 (num_decode_workers) = 16
+  #              num_nodes = 16 / 4 = 4 nodes per cluster
+  
+  config: /work/scripts/slurm_llm/dynamo/trtllm/deepseek-r1/decode_config.yaml
+
+# =============================================================================
+# Cluster Sizing Example
+# =============================================================================
+# With this config:
+#   - Nodes per cluster = 1 (prefill) + 4 (decode) = 5 nodes
+#   - Nodelist from SLURM: 10 nodes → 10 / 5 = 2 clusters launched
+#   - Nodelist from SLURM: 15 nodes → 15 / 5 = 3 clusters launched
+#   - Each cluster has: 1 frontend, 1 prefill worker, 1 decode worker
+#
+# Node Allocation per Cluster (non-overlapping):
+#   Cluster 0: nodes [0-4]   → frontend=node_0, prefill=node_0, decode=nodes_1-4
+#   Cluster 1: nodes [5-9]   → frontend=node_5, prefill=node_5, decode=nodes_6-9
+#   Cluster 2: nodes [10-14] → frontend=node_10, prefill=node_10, decode=nodes_11-14
+
+# =============================================================================
+# Optional Timing Configuration
+# =============================================================================
+# Time to wait (seconds) for frontend to initialize before launching workers
+frontend_init_delay: 10
+
+# Time to wait (seconds) between launching worker groups
+worker_init_delay: 5

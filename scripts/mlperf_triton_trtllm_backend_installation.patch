@@ -1,0 +1,36 @@
+diff --git a/inflight_batcher_llm/CMakeLists.txt b/inflight_batcher_llm/CMakeLists.txt
+index 21d0c71..fe2bef0 100644
+--- a/inflight_batcher_llm/CMakeLists.txt
++++ b/inflight_batcher_llm/CMakeLists.txt
+@@ -186,13 +186,15 @@ find_library(NCCL_LIB nccl HINTS ${NCCL_LIB_DIR})
+ # environment_setup.sh script
+ set_ifndef(TRT_LIB_DIR
+            /usr/local/tensorrt/targets/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu/lib)
+-set_ifndef(
+-  TRT_INCLUDE_DIR
+-  /usr/local/tensorrt/targets/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu/include)
++# set_ifndef(
++#   TRT_INCLUDE_DIR
++#   /usr/local/tensorrt/targets/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu/include)
++set(TRT_INCLUDE_DIR "/work/build/triton-inference-server/out/trt_link/include")
+ 
+ set(TRT_LIB nvinfer)
+ find_library_create_target(${TRT_LIB} nvinfer SHARED ${TRT_LIB_DIR})
+ 
++message(STATUS "TRT_INCLUDE_DIR: ${TRT_INCLUDE_DIR}")
+ file(STRINGS "${TRT_INCLUDE_DIR}/NvInferVersion.h" VERSION_STRINGS
+      REGEX "#define NV_TENSORRT_.*")
+ foreach(TYPE MAJOR MINOR PATCH BUILD)
+diff --git a/inflight_batcher_llm/scripts/build.sh b/inflight_batcher_llm/scripts/build.sh
+index 22ac8bb..4ea4260 100644
+--- a/inflight_batcher_llm/scripts/build.sh
++++ b/inflight_batcher_llm/scripts/build.sh
+@@ -11,7 +11,7 @@ Help()
+    echo
+ }
+ 
+-TRT_ROOT='/usr/local/tensorrt'
++TRT_ROOT='/work/build/triton-inference-server/out/trt_link'
+ BUILD_UNIT_TESTS='false'
+ 
+ # Get the options

@@ -1,0 +1,15 @@
+{
+    "generation_config": {
+      "min_output_len": 1,
+      "max_output_len": 128,
+      "runtime_beam_width": 1,
+      "temperature": 0.0,
+      "top_k": 1,
+      "top_p": 1,
+      "use_stop_tokens": false,
+      "streaming": true,
+      "eos_token_id": 128009,
+      "bos_token_id": 128000,
+      "name": "llama3.1-8b"
+    }
+}

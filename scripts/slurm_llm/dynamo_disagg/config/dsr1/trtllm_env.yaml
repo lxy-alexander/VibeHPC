@@ -1,0 +1,12 @@
+# TRT-LLM environment variables for DeepSeek-R1 disaggregated serving
+# These improve stability and performance
+
+# Disable garbage collection for better latency
+TRTLLM_SERVER_DISABLE_GC: 1
+TRTLLM_WORKER_DISABLE_GC: 1
+
+# Enable PDL for better performance
+TRTLLM_ENABLE_PDL: 1
+
+# Disable NCCL graph mixing to avoid segfaults in MNNVL memory operations
+NCCL_GRAPH_MIXING_SUPPORT: 0

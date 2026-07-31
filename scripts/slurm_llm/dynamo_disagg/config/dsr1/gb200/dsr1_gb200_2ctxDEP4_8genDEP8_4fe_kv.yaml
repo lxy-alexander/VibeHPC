@@ -1,0 +1,35 @@
+# DeepSeek-R1 GB200 x72: 2 CTX DEP4 + 8 GEN DEP8 MBS64, 4 FE, KV Router (w=1)
+#
+# Configuration:
+#   - 2 CTX workers @ DEP4 (4 GPUs each = 8 GPUs = 2 nodes)
+#   - 8 GEN workers @ DEP8 MBS64 (8 GPUs each = 64 GPUs = 16 nodes)
+#   - 4 Frontends with KV router (weight=1.0)
+#   - Total: 72 GPUs (18 nodes)
+#
+# Target QPS: 39
+
+benchmark: deepseek-r1
+scenario: Interactive
+
+disagg_cluster:
+  num_prefill_workers: 2
+  num_decode_workers: 8
+  system: GB200-NVL72_GB200-186GB_aarch64x4  # Frontend system
+  num_frontends: 4
+  frontend:
+    router_mode: kv
+    kv_overlap_weight: 1.0  # w=1 for KV overlap routing
+
+prefill:
+  system: GB200-NVL72_GB200-186GB_aarch64x4
+  gpus_per_worker: 4
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo_disagg/config/dsr1/gb200/dsr1_gb200_ctx_DEP4.yaml
+  env_vars: scripts/slurm_llm/dynamo_disagg/config/dsr1/trtllm_env.yaml
+
+decode:
+  system: GB200-NVL72_GB200-186GB_aarch64x8
+  gpus_per_worker: 8
+  gpus_per_node: 4
+  config: /work/scripts/slurm_llm/dynamo_disagg/config/dsr1/gb200/dsr1_gb200_gen_DEP8.yaml
+  env_vars: scripts/slurm_llm/dynamo_disagg/config/dsr1/trtllm_env.yaml

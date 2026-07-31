@@ -1,0 +1,7 @@
+{
+    "input_data_types": "fp32",
+    "retraining": "No",
+    "starting_weights_filename": "Huggingface model weights hosted by MLCommons (nvidia/Qwen3-VL-235B-A22B-Instruct-NVFP4-MLPerf-Inference-Closed-V6.0)",
+    "weight_data_types": "fp32",
+    "weight_transformations": "quantization"
+}

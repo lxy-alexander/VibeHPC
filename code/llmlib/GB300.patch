@@ -1,0 +1,80 @@
+diff --git a/closed/NVIDIA/code/llmlib/config.py b/closed/NVIDIA/code/llmlib/config.py
+index a7747d80b3..2c374400dc 100644
+--- a/closed/NVIDIA/code/llmlib/config.py
++++ b/closed/NVIDIA/code/llmlib/config.py
+@@ -487,10 +487,10 @@ class TrtllmExtraYAMLConfig(TrtllmHarnessConfig):
+                 'context_chunking_policy': runtime_flags['context_chunking_policy'],
+             },
+ 
++            'kv_cache_dtype': checkpoint_flags['kv_cache_dtype'],
+             'kv_cache_config': {
+                 'free_gpu_memory_fraction': runtime_flags['kvcache_free_gpu_mem_frac'],
+                 'enable_block_reuse': False,
+-                'dtype': checkpoint_flags['kv_cache_dtype'],
+             },
+ 
+             'enable_attention_dp': build_flags['enable_attention_dp'],
+@@ -499,20 +499,17 @@ class TrtllmExtraYAMLConfig(TrtllmHarnessConfig):
+         if using_pytorch:
+             config_dict |= {
+                 'torch_compile_enabled': build_flags['torch_compile_enabled'],
+-                'moe_config': {
+-                    'backend': runtime_flags['moe_backend'],
+-                }
++                'use_cuda_graph': runtime_flags['use_cuda_graphs'],
++                'moe_backend': runtime_flags['moe_backend'],
+             }
+ 
+-            if runtime_flags['use_cuda_graphs']:
++            if config_dict['use_cuda_graph']:
+                 assert runtime_flags['cuda_graph_batch_sizes'] is not None, \
+                     logging.error(f"CUDA graphs enabled but no cuda_graph_batch_sizes provided. ")
+ 
+                 config_dict |= {
+-                    'cuda_graph_config': {
+-                        'enable_padding': runtime_flags['cuda_graph_padding_enabled'],
+-                        'batch_sizes': runtime_flags['cuda_graph_batch_sizes'],
+-                    }
++                    'cuda_graph_padding_enabled': runtime_flags['cuda_graph_padding_enabled'],
++                    'cuda_graph_batch_sizes': runtime_flags['cuda_graph_batch_sizes'],
+ 
+                     # NOTE(vir): we dont rely on automatic batch-sizes
+                     # 'cuda_graph_max_batch_size': 0
+diff --git a/closed/NVIDIA/code/llmlib/launch_server.py b/closed/NVIDIA/code/llmlib/launch_server.py
+index 8c050fd370..2176ecce70 100644
+--- a/closed/NVIDIA/code/llmlib/launch_server.py
++++ b/closed/NVIDIA/code/llmlib/launch_server.py
+@@ -274,8 +274,8 @@ class RunTrtllmServeOp(Operation):
+ 
+             cmd = []
+             if is_mpi_launch:
+-                # if installed correctly, this should be in PATH (/usr/local/bin/)
+-                cmd = ['trtllm-llmapi-launch', 'trtllm-serve']
++                # TODO(vir): remove hardcoded string
++                cmd = ['/work/build/TRTLLM/tensorrt_llm/llmapi/trtllm-llmapi-launch', 'trtllm-serve']
+                 gpu_ids = None
+ 
+             else:
+@@ -316,22 +316,6 @@ class RunTrtllmServeOp(Operation):
+                 cmd.append('--disable_gc')
+ 
+             log_file = self.log_dir / f'trtllm_serve_{index}.log'
+-
+-            enable_profiling = False
+-            if enable_profiling:
+-                nsys_prefix = ['nsys', 'profile',
+-                    '--output', f'{self.log_dir}/trtllm_serve_{index}_profile.nsys-rep',
+-                    '--force-overwrite', 'true',
+-                    '-t', 'cuda,nvtx',
+-                    '-c', 'cudaProfilerApi',
+-                    '--gpu-metrics-devices', env['CUDA_VISIBLE_DEVICES'],
+-                    '--cuda-graph-trace', 'node',
+-                    '--capture-range-end', 'stop-shutdown'
+-                ]
+-                env['TLLM_PROFILE_START_STOP'] = "4000-4010"
+-                nsys_prefix.extend(cmd)
+-                cmd = nsys_prefix
+-
+             with open(log_file, 'w') as f:
+                 f.write(f"Launch ENV:\n{env}\n\n")
+                 f.write(f"Launch CMD:\n{' '.join(cmd)}\n\n")

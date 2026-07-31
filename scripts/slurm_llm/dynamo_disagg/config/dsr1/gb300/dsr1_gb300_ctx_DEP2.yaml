@@ -1,0 +1,47 @@
+# DeepSeek-R1 CTX (Prefill) Config - DEP2 (2 GPUs)
+# GB300 Configuration - MLPerf v6.0
+# MOE backend: CUTEDSL
+# Performance: ~12 QPS max throughput per CTX server
+
+backend: pytorch
+
+max_batch_size: 128
+max_num_tokens: 12288
+max_seq_len: 3200
+
+tensor_parallel_size: 2
+moe_expert_parallel_size: 2
+enable_attention_dp: true
+pipeline_parallel_size: 1
+
+print_iter_log: true
+enable_iter_perf_stats: true
+cuda_graph_config: null
+disable_overlap_scheduler: true
+
+moe_config:
+  backend: CUTEDSL
+
+nvfp4_gemm_config:
+  allowed_backends:
+    - cutlass
+    - cublaslt
+    - cutedsl
+    - cuda_core
+
+kv_cache_config:
+  enable_block_reuse: false
+  free_gpu_memory_fraction: 0.85
+  dtype: fp8
+
+cache_transceiver_config:
+  max_tokens_in_buffer: 4608
+  backend: UCX
+
+scheduler_config:
+  capacity_scheduler_policy: MAX_UTILIZATION
+  context_chunking_policy: FIRST_COME_FIRST_SERVED
+
+speculative_config:
+  decoding_type: MTP
+  num_nextn_predict_layers: 3

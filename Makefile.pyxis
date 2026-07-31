@@ -1,0 +1,78 @@
+ifndef MAKEFILE_PYXIS_INCLUDED
+MAKEFILE_PYXIS_INCLUDED := 1
+
+include $(CURDIR)/Makefile.docker
+
+INSTALL_TRTLLM ?= 0
+INSTALL_LOADGEN ?= 0
+EXTRA_SRUN_FLAGS ?=
+SLURM_MODE ?= "srun"
+MLPERF_SCRATCH_PATH ?= "/lustre/share/coreai_mlperf_inference/mlperf_inference_storage_clone"
+MLPERF_SQSH_IMAGE ?= $(BUILD_DIR)/sqsh_images/mlperf-inference-$(DOCKER_TAG)-$(ENV)-$(BENCHMARK).sqsh
+
+# Build TensorRT-LLM base sqsh image
+# Note: Sqsh builds are saved locally and don't use remote caching
+.PHONY: build_trtllm_sqsh
+build_trtllm_sqsh:
+	@echo "Building TensorRT-LLM $(ENV) sqsh image"
+	@echo "TRT-LLM Hash: $(TRTLLM_HASH)"
+	@mkdir -p $(BUILD_DIR)/sqsh_images
+	@if [ -f "$(BUILD_DIR)/sqsh_images/trtllm-$(ENV)-$(TRTLLM_HASH).sqsh" ] && [ "$(FORCE_BUILD)" != "1" ]; then \
+		echo "TRT-LLM $(ENV) sqsh image already exists, skipping build (set FORCE_BUILD=1 to rebuild)"; \
+	else \
+		if [ ! -f "$(BUILD_DIR)/sqsh_images/trtllm-dev-$(TRTLLM_HASH).sqsh" ] || [ "$(FORCE_BUILD)" = "1" ]; then \
+			echo "Building TRT-LLM dev image..."; \
+			$(MAKE) -C $(TRTLLM_DIR)/enroot build_sqsh SQSH_PATH=$(BUILD_DIR)/sqsh_images/trtllm-dev-$(TRTLLM_HASH).sqsh; \
+		else \
+			echo "TRT-LLM dev image already exists"; \
+		fi; \
+		if [ "$(ENV)" = "release" ]; then \
+			echo "Building and installing TRT-LLM in release image..."; \
+			srun \
+				--container-image "$(BUILD_DIR)/sqsh_images/trtllm-dev-$(TRTLLM_HASH).sqsh" \
+				--container-save "$(BUILD_DIR)/sqsh_images/trtllm-$(ENV)-$(TRTLLM_HASH).sqsh" \
+				--container-mounts "$(HOST_VOL):$(CONTAINER_VOL),$(MLPERF_SCRATCH_PATH):/home/mlperf_inference_storage" \
+				--container-workdir "$(CONTAINER_VOL)" \
+				--container-mount-home --container-remap-root \
+				--export "$(shell echo $(PREBUILD_ENV_VARS) | tr ' ' ',')" \
+				$(EXTRA_SRUN_FLAGS) \
+				bash -c 'make build_trt_llm && make install_trt_llm'; \
+		fi; \
+	fi
+
+# Build MLPerf sqsh image
+.PHONY: build_mlperf_sqsh
+build_mlperf_sqsh:
+	@if [ -z "$(BASE_IMAGE)" ]; then \
+		echo "Error: BASE_IMAGE must be specified"; \
+		exit 1; \
+	fi
+	@echo "Building MLPerf LLM sqsh image with base image: $(BASE_IMAGE)"
+	@if [ -f "$(MLPERF_SQSH_IMAGE)" ] && [ "$(FORCE_BUILD)" != "1" ]; then \
+		echo "MLPerf LLM sqsh image already exists, skipping build (set FORCE_BUILD=1 to rebuild)"; \
+	else \
+		srun \
+			--container-image "$(BASE_IMAGE)" \
+			--container-save "$(MLPERF_SQSH_IMAGE)" \
+			--container-mounts "$(HOST_VOL):$(CONTAINER_VOL),$(MLPERF_SCRATCH_PATH):/home/mlperf_inference_storage" \
+			--container-workdir "$(CONTAINER_VOL)" \
+			--container-remap-root \
+			--export "$(shell echo $(PREBUILD_ENV_VARS) | tr ' ' ',')" \
+			$(EXTRA_SRUN_FLAGS) \
+			docker/common/install.sh $(ARGS) || { echo "Failed to install dependencies"; exit 1; }; \
+		echo "Successfully built MLPerf LLM sqsh image at: $(MLPERF_SQSH_IMAGE)"; \
+	fi
+
+.PHONY: launch_sqsh
+launch_sqsh:
+	@echo "Launching interactive shell in MLPerf LLM sqsh image: $(MLPERF_SQSH_IMAGE)"
+	@srun \
+		--container-image "$(MLPERF_SQSH_IMAGE)" \
+		--container-mounts "$(HOST_VOL):$(CONTAINER_VOL),$(MLPERF_SCRATCH_PATH):/home/mlperf_inference_storage" \
+		--container-workdir "$(CONTAINER_VOL)" \
+		--container-remap-root \
+		--export "$(shell echo $(PREBUILD_ENV_VARS) | tr ' ' ','),TERM=xterm-256color" \
+		$(EXTRA_SRUN_FLAGS) \
+		$(if $(RUN_COMMAND),$(RUN_COMMAND),--pty bash)
+
+endif #ifndef MAKEFILE_PYXIS_INCLUDED

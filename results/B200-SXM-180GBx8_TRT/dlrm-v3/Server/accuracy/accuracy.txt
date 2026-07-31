@@ -1,0 +1,17 @@
+/usr/local/lib/python3.12/dist-packages/torch/jit/annotations.py:388: UserWarning: TorchScript will treat type annotations of Tensor dtype-specific subtypes as if they are normal Tensors. dtype constraints are not enforced in compilation either.
+  warnings.warn(
+WARNING:main:Parsing loadgen accuracy log...
+WARNING:main:results have 349823 entries
+/work/code/dlrm-v3/benchmarks/accuracy.py:70: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:203.)
+  mt_target_preds = torch.from_numpy(data[2:2 + num_candidates])
+WARNING:main:metric/lifetime_ne/rating: 0.8675504587396445
+WARNING:main:metric/window_ne/rating: 0.7421695330472495
+WARNING:main:metric/lifetime_accuracy/rating: 0.6964261896038318
+WARNING:main:metric/window_accuracy/rating: 0.73876953125
+WARNING:main:metric/lifetime_gauc/rating: 0.7862891896349031
+WARNING:main:metric/window_gauc/rating: 0.8109270328025234
+WARNING:main:metric/lifetime_gauc_num_samples/rating: 349823.0
+WARNING:main:metric/window_gauc_num_samples/rating: 1.0
+WARNING: temporarily disabled some autotune configs for CUDA 12.8+
+
+hash=b6864f9018d17283a064d43ea5ed73ca516a442c0c7ba02cecd301e101dc5694

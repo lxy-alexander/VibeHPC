@@ -1,0 +1,67 @@
+# DeepSeek-R1 GEN (Decode) Config - DEP8 (8 GPUs) MBS64
+# Based on MLPerf v6.0 GB200 configuration
+# MOE backend: CUTEDSL
+
+backend: pytorch
+
+tensor_parallel_size: 8
+moe_expert_parallel_size: 8
+enable_attention_dp: true
+enable_lm_head_tp_in_adp: true
+pipeline_parallel_size: 1
+
+max_batch_size: 64
+max_num_tokens: 6144
+max_seq_len: 23200
+
+cuda_graph_config:
+  enable_padding: true
+  batch_sizes:
+    - 1
+    - 2
+    - 4
+    - 8
+    - 12
+    - 16
+    - 20
+    - 24
+    - 28
+    - 32
+    - 40
+    - 48
+    - 56
+    - 64
+
+print_iter_log: true
+enable_iter_perf_stats: true
+
+kv_cache_config:
+  enable_block_reuse: false
+  free_gpu_memory_fraction: 0.9
+  dtype: fp8
+
+nvfp4_gemm_config:
+  allowed_backends:
+    - cutlass
+    - cublaslt
+    - cutedsl
+    - cuda_core
+
+moe_config:
+  backend: CUTEDSL
+  use_low_precision_moe_combine: true
+
+cache_transceiver_config:
+  max_tokens_in_buffer: 4608
+  backend: UCX
+
+stream_interval: 100
+num_postprocess_workers: 4
+
+scheduler_config:
+  capacity_scheduler_policy: MAX_UTILIZATION
+  context_chunking_policy: FIRST_COME_FIRST_SERVED
+
+speculative_config:
+  decoding_type: MTP
+  num_nextn_predict_layers: 3
