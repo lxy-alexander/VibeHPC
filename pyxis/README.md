@@ -20,7 +20,7 @@ There are two stages:
 - [TLDR](#tldr)
 
 ## Stage 0: Preliminary
-It is required to export `MLPERF_SCRATCH_PATH` variable to point to a path where models, data and preprocessed_data reside. See `closed/NVIDIA/README.md` for more info.
+It is required to export `MLPERF_SCRATCH_PATH` variable to point to a path where models, data and preprocessed_data reside. See `closed/VibeHPC/README.md` for more info.
 ```bash
 $ export MLPERF_SCRATCH_PATH="/path/to/your/scratch/space"
 $ export MLPERF_SCRATCH_PATH="/home/mlperf_inference_storage" # this is the default value

@@ -1,7 +1,7 @@
-To calibrate this benchmark, first follow the setup steps in `closed/NVIDIA/README.md`.
+To calibrate this benchmark, first follow the setup steps in `closed/VibeHPC/README.md`.
 
 ```
 make calibrate RUN_ARGS="--benchmarks=llama3_1-8b --scenarios=Server"
 ```
 
-For more details, please refer to `closed/NVIDIA/README.md`.
+For more details, please refer to `closed/VibeHPC/README.md`.
